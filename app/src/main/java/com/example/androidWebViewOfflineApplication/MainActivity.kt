@@ -1,10 +1,12 @@
 package com.example.ranjanasmarthome
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.bluetooth.*
 import android.bluetooth.le.*
-import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -13,6 +15,8 @@ import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import java.util.*
 import java.util.concurrent.ConcurrentLinkedQueue
 
@@ -39,13 +43,28 @@ class MainActivity : ComponentActivity() {
     private var isWriting = false
     private val handler = Handler(Looper.getMainLooper())
 
+    // ---------------- Permission Launcher ----------------
+    private val requestPermissionsLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
+            val granted = permissions.entries.all { it.value }
+            if (granted) {
+                Log.d(TAG, "All required permissions granted")
+                scanForDevices()
+            } else {
+                Log.e(TAG, "Required permissions denied")
+            }
+        }
+
     @SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         // Initialize Bluetooth
-        val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+        val bluetoothManager = getSystemService(BLUETOOTH_SERVICE) as BluetoothManager
         bluetoothAdapter = bluetoothManager.adapter
+
+        // Request permissions first
+        checkAndRequestPermissions()
 
         // Create WebView
         webView = WebView(this).apply {
@@ -67,10 +86,33 @@ class MainActivity : ComponentActivity() {
         setContentView(webView)
     }
 
+    // ---------------- Check / Request Permissions ----------------
+    private fun checkAndRequestPermissions() {
+        val permissions = mutableListOf(
+            Manifest.permission.ACCESS_FINE_LOCATION
+        )
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            permissions.add(Manifest.permission.BLUETOOTH_SCAN)
+            permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
+        }
+
+        val missingPermissions = permissions.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+
+        if (missingPermissions.isNotEmpty()) {
+            requestPermissionsLauncher.launch(missingPermissions.toTypedArray())
+        } else {
+            Log.d(TAG, "All required permissions already granted")
+        }
+    }
+
     inner class AndroidBridge(private val activity: Activity) {
 
         @android.webkit.JavascriptInterface
         fun startBLE() {
+            checkAndRequestPermissions()
             scanForDevices()
         }
 
@@ -95,7 +137,6 @@ class MainActivity : ComponentActivity() {
 
         @android.webkit.JavascriptInterface
         fun sendBLE(cmd: String) {
-            // Add to queue and process
             bleCommandQueue.add(cmd)
             processQueue()
         }
@@ -116,7 +157,10 @@ class MainActivity : ComponentActivity() {
                     if (device.name?.startsWith("RanjanaSmartHome") == true) {
                         targetDeviceAddress = device.address
                         scanner.stopScan(this)
-                        notifyJS("bleFound", "{\"name\":\"${device.name}\",\"address\":\"${device.address}\"}")
+                        notifyJS(
+                            "bleFound",
+                            "{\"name\":\"${device.name}\",\"address\":\"${device.address}\"}"
+                        )
                         Log.d(TAG, "Target device found: $targetDeviceAddress")
                     }
                 }
@@ -129,8 +173,11 @@ class MainActivity : ComponentActivity() {
 
     // ---------------- BLE GATT ----------------
     private val gattCallback = object : BluetoothGattCallback() {
-
-        override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
+        override fun onConnectionStateChange(
+            gatt: BluetoothGatt,
+            status: Int,
+            newState: Int
+        ) {
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 Log.d(TAG, "Connected")
                 notifyJS("bleStatus", "{\"status\":\"connected\"}")
@@ -149,26 +196,32 @@ class MainActivity : ComponentActivity() {
 
                 // Enable notifications
                 gatt.setCharacteristicNotification(txCharacteristic, true)
-                val descriptor = txCharacteristic?.getDescriptor(UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"))
+                val descriptor =
+                    txCharacteristic?.getDescriptor(UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"))
                 descriptor?.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
                 gatt.writeDescriptor(descriptor)
             }
         }
 
-        override fun onCharacteristicChanged(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
+        override fun onCharacteristicChanged(
+            gatt: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic
+        ) {
             val value = characteristic.value.toString(Charsets.UTF_8)
             Log.d(TAG, "Received: $value")
             notifyJS("bleData", "{\"data\":\"$value\"}")
         }
 
-        override fun onCharacteristicWrite(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
-            // Command written, allow next in queue
+        override fun onCharacteristicWrite(
+            gatt: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic,
+            status: Int
+        ) {
             isWriting = false
             processQueue()
         }
     }
 
-    // ---------------- Queue Processor ----------------
     private fun processQueue() {
         if (isWriting) return
         val cmd = bleCommandQueue.poll() ?: return
@@ -179,10 +232,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // ---------------- Notify JS ----------------
     private fun notifyJS(event: String, json: String) {
         runOnUiThread {
-            webView.evaluateJavascript("window.onBLEEvent && window.onBLEEvent('$event', $json);", null)
+            webView.evaluateJavascript(
+                "window.onBLEEvent && window.onBLEEvent('$event', $json);",
+                null
+            )
         }
     }
 }
