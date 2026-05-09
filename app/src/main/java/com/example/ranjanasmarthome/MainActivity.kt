@@ -16,27 +16,31 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
-import java.util.*
+import java.util.Queue
+import java.util.UUID
 import java.util.concurrent.ConcurrentLinkedQueue
 
 class MainActivity : ComponentActivity() {
 
     private val TAG = "RanjanaBLE"
 
-    // ---------------- WEBVIEW ----------------
+    // ================= WEBVIEW =================
+
     private lateinit var webView: WebView
 
-    // ---------------- BLE UUIDs ----------------
-    private val SERVICE_UUID =
+    // ================= UUID =================
+
+    private val SERVICE_UUID: UUID =
         UUID.fromString("6e400001-b5a3-f393-e0a9-e50e24dcca9e")
 
-    private val CHARACTERISTIC_TX =
+    private val CHARACTERISTIC_TX: UUID =
         UUID.fromString("6e400003-b5a3-f393-e0a9-e50e24dcca9e")
 
-    private val CHARACTERISTIC_RX =
+    private val CHARACTERISTIC_RX: UUID =
         UUID.fromString("6e400002-b5a3-f393-e0a9-e50e24dcca9e")
 
-    // ---------------- BLE ----------------
+    // ================= BLE =================
+
     private var bluetoothAdapter: BluetoothAdapter? = null
     private var bluetoothGatt: BluetoothGatt? = null
 
@@ -45,23 +49,25 @@ class MainActivity : ComponentActivity() {
 
     private var targetDeviceAddress: String? = null
 
-    private val handler =
+    private val handler: Handler =
         Handler(Looper.getMainLooper())
 
-    // ---------------- BLE QUEUE ----------------
+    // ================= COMMAND QUEUE =================
+
     private val bleCommandQueue:
             Queue<String> =
         ConcurrentLinkedQueue()
 
     private var isWriting = false
 
-    // ---------------- PERMISSIONS ----------------
+    // ================= PERMISSIONS =================
+
     private val permissionLauncher =
         registerForActivityResult(
             ActivityResultContracts.RequestMultiplePermissions()
         ) { result ->
 
-            val granted =
+            val granted: Boolean =
                 result.entries.all { it.value }
 
             if (!granted) {
@@ -74,10 +80,12 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-    // ---------------- FAST RECONNECT ----------------
-    private val reconnectRunnable =
+    // ================= FAST RECONNECT =================
+
+    private val reconnectRunnable: Runnable =
         object : Runnable {
 
+            @SuppressLint("MissingPermission")
             override fun run() {
 
                 if (bluetoothGatt != null)
@@ -85,9 +93,12 @@ class MainActivity : ComponentActivity() {
 
                 try {
 
-                    targetDeviceAddress?.let { addr ->
+                    val addr: String? =
+                        targetDeviceAddress
 
-                        val device =
+                    if (addr != null) {
+
+                        val device: BluetoothDevice? =
                             bluetoothAdapter
                                 ?.getRemoteDevice(addr)
 
@@ -110,7 +121,7 @@ class MainActivity : ComponentActivity() {
 
                 handler.postDelayed(
                     this,
-                    300
+                    500
                 )
             }
         }
@@ -127,7 +138,6 @@ class MainActivity : ComponentActivity() {
 
         super.onCreate(savedInstanceState)
 
-        // Bluetooth
         val bluetoothManager =
             getSystemService(
                 Context.BLUETOOTH_SERVICE
@@ -138,8 +148,6 @@ class MainActivity : ComponentActivity() {
 
         checkPermissions()
 
-        // ---------------- WEBVIEW ----------------
-
         webView = WebView(this).apply {
 
             settings.javaScriptEnabled = true
@@ -148,7 +156,6 @@ class MainActivity : ComponentActivity() {
             settings.allowContentAccess = true
             settings.useWideViewPort = true
             settings.loadWithOverviewMode = true
-
             settings.mediaPlaybackRequiresUserGesture = false
 
             webViewClient = WebViewClient()
@@ -212,7 +219,7 @@ class MainActivity : ComponentActivity() {
     }
 
     // =========================================================
-    // JAVASCRIPT BRIDGE
+    // JS BRIDGE
     // =========================================================
 
     inner class AndroidBridge(
@@ -230,7 +237,10 @@ class MainActivity : ComponentActivity() {
 
             try {
 
-                targetDeviceAddress?.let { addr ->
+                val addr =
+                    targetDeviceAddress
+
+                if (addr != null) {
 
                     val device =
                         bluetoothAdapter
@@ -307,14 +317,13 @@ class MainActivity : ComponentActivity() {
             processQueue()
         }
 
-        // compatibility with your HTML
         @android.webkit.JavascriptInterface
         fun setupBLE() {
         }
     }
 
     // =========================================================
-    // BLE SCAN
+    // SCAN
     // =========================================================
 
     @SuppressLint("MissingPermission")
@@ -359,11 +368,6 @@ class MainActivity : ComponentActivity() {
                             "bleFound",
                             name
                         )
-
-                        Log.d(
-                            TAG,
-                            "Found: $name"
-                        )
                     }
                 }
             }
@@ -386,7 +390,8 @@ class MainActivity : ComponentActivity() {
     // GATT CALLBACK
     // =========================================================
 
-    private val gattCallback =
+    private val gattCallback:
+            BluetoothGattCallback =
         object : BluetoothGattCallback() {
 
             @SuppressLint("MissingPermission")
@@ -400,11 +405,6 @@ class MainActivity : ComponentActivity() {
                     newState ==
                     BluetoothProfile.STATE_CONNECTED
                 ) {
-
-                    Log.d(
-                        TAG,
-                        "Connected"
-                    )
 
                     notifyJS(
                         "bleStatus",
@@ -422,11 +422,6 @@ class MainActivity : ComponentActivity() {
                     newState ==
                     BluetoothProfile.STATE_DISCONNECTED
                 ) {
-
-                    Log.d(
-                        TAG,
-                        "Disconnected"
-                    )
 
                     notifyJS(
                         "bleStatus",
@@ -447,7 +442,7 @@ class MainActivity : ComponentActivity() {
 
                     handler.postDelayed(
                         reconnectRunnable,
-                        300
+                        500
                     )
                 }
             }
@@ -473,14 +468,13 @@ class MainActivity : ComponentActivity() {
                         CHARACTERISTIC_TX
                     )
 
-                // Enable notifications
-
                 gatt.setCharacteristicNotification(
                     txCharacteristic,
                     true
                 )
 
-                val descriptor =
+                val descriptor:
+                        BluetoothGattDescriptor? =
                     txCharacteristic
                         ?.getDescriptor(
                             UUID.fromString(
@@ -516,11 +510,6 @@ class MainActivity : ComponentActivity() {
                         ?.toString(Charsets.UTF_8)
                         ?: return
 
-                Log.d(
-                    TAG,
-                    "RX: $msg"
-                )
-
                 notifyJS(
                     "bleData",
                     msg
@@ -540,7 +529,7 @@ class MainActivity : ComponentActivity() {
         }
 
     // =========================================================
-    // BLE QUEUE
+    // QUEUE
     // =========================================================
 
     @SuppressLint("MissingPermission")
@@ -553,22 +542,23 @@ class MainActivity : ComponentActivity() {
             bleCommandQueue.poll()
                 ?: return
 
-        val ch =
+        val characteristic:
+                BluetoothGattCharacteristic =
             rxCharacteristic
                 ?: return
 
         try {
 
-            ch.value =
+            characteristic.value =
                 cmd.toByteArray()
 
-            ch.writeType =
+            characteristic.writeType =
                 BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
 
             isWriting = true
 
             bluetoothGatt
-                ?.writeCharacteristic(ch)
+                ?.writeCharacteristic(characteristic)
 
             Log.d(
                 TAG,
@@ -588,7 +578,7 @@ class MainActivity : ComponentActivity() {
     }
 
     // =========================================================
-    // SEND EVENTS TO HTML
+    // JS EVENTS
     // =========================================================
 
     private fun notifyJS(
@@ -600,8 +590,6 @@ class MainActivity : ComponentActivity() {
 
             when (event) {
 
-                // ---------------- STATUS ----------------
-
                 "bleStatus" -> {
 
                     webView.evaluateJavascript(
@@ -609,8 +597,6 @@ class MainActivity : ComponentActivity() {
                         null
                     )
                 }
-
-                // ---------------- BLE DATA ----------------
 
                 "bleData" -> {
 
@@ -625,8 +611,6 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
-                // ---------------- DEVICE FOUND ----------------
-
                 "bleFound" -> {
 
                     webView.evaluateJavascript(
@@ -639,7 +623,7 @@ class MainActivity : ComponentActivity() {
     }
 
     // =========================================================
-    // BACK BUTTON
+    // BACK
     // =========================================================
 
     @Deprecated("Deprecated in Java")
@@ -656,7 +640,7 @@ class MainActivity : ComponentActivity() {
     }
 
     // =========================================================
-    // CLEANUP
+    // DESTROY
     // =========================================================
 
     override fun onDestroy() {
