@@ -1,4 +1,4 @@
-name: Ultra Fast Android Build
+name: Build Android APK
 
 on:
   push:
@@ -8,66 +8,47 @@ on:
   workflow_dispatch:
 
 jobs:
-
   build:
 
     runs-on: ubuntu-latest
 
-    timeout-minutes: 15
-
     steps:
 
-      # =========================================
+      # ==========================================
       # Checkout
-      # =========================================
+      # ==========================================
 
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # =========================================
-      # Java 17
-      # =========================================
+      # ==========================================
+      # JDK 17
+      # ==========================================
 
-      - name: Setup JDK 17
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
           cache: gradle
 
-      # =========================================
-      # Gradle Cache
-      # =========================================
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          cache-read-only: false
-
-      # =========================================
-      # Permission
-      # =========================================
+      # ==========================================
+      # Gradle Permission
+      # ==========================================
 
       - name: Grant Permission
         run: chmod +x gradlew
 
-      # =========================================
-      # Ultra Fast Build
-      # =========================================
+      # ==========================================
+      # Build APK
+      # ==========================================
 
       - name: Build Debug APK
-        run: |
-          ./gradlew assembleDebug \
-          --parallel \
-          --build-cache \
-          --configuration-cache \
-          --daemon \
-          -x lint \
-          -x test
+        run: ./gradlew assembleDebug --build-cache --parallel --daemon
 
-      # =========================================
+      # ==========================================
       # Upload APK
-      # =========================================
+      # ==========================================
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
