@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:background="@drawable/widget_bg"
+    android:padding="12dp"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content">
+
+    <!-- Light 1 & Light 2 -->
+    <LinearLayout
+        android:orientation="horizontal"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center">
+
+        <Button
+            android:id="@+id/btnLight1"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Light 1" />
+
+        <Button
+            android:id="@+id/btnLight2"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Light 2"
+            android:layout_marginStart="8dp"/>
+    </LinearLayout>
+
+    <!-- Fan 1 & Fan 2 -->
+    <LinearLayout
+        android:orientation="horizontal"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:layout_marginTop="8dp">
+
+        <Button
+            android:id="@+id/btnFan1"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Fan 1" />
+
+        <Button
+            android:id="@+id/btnFan2"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Fan 2"
+            android:layout_marginStart="8dp"/>
+    </LinearLayout>
+</LinearLayout>
