@@ -1,67 +1,66 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/widgetRoot"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     android:orientation="vertical"
     android:padding="12dp"
-    android:background="#222222">
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:background="@drawable/widget_bg">
 
-    <!-- First Row: Light1 & Light2 -->
-    <LinearLayout
-        android:layout_width="match_parent"
+    <TextView
+        android:id="@+id/widgetTitle"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center"
-        android:layout_marginBottom="8dp">
+        android:text="Smart Home"
+        android:textSize="18sp"
+        android:textColor="#FFFFFF"
+        android:paddingBottom="8dp"
+        android:textStyle="bold"/>
+
+    <GridLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:columnCount="2"
+        android:rowCount="2"
+        android:columnOrderPreserved="false"
+        android:rowOrderPreserved="false"
+        android:alignmentMode="alignMargins"
+        android:useDefaultMargins="true">
 
         <Button
-            android:id="@+id/btnLight1"
-            android:layout_width="0dp"
-            android:layout_weight="1"
-            android:layout_height="60dp"
+            android:id="@+id/light1Button"
+            android:layout_width="100dp"
+            android:layout_height="100dp"
             android:text="Light 1"
+            android:background="@drawable/button_bg"
             android:textColor="#FFFFFF"
-            android:background="@drawable/widget_button_bg"
-            android:layout_marginEnd="4dp"/>
+            android:textSize="16sp"/>
 
         <Button
-            android:id="@+id/btnLight2"
-            android:layout_width="0dp"
-            android:layout_weight="1"
-            android:layout_height="60dp"
+            android:id="@+id/light2Button"
+            android:layout_width="100dp"
+            android:layout_height="100dp"
             android:text="Light 2"
+            android:background="@drawable/button_bg"
             android:textColor="#FFFFFF"
-            android:background="@drawable/widget_button_bg"
-            android:layout_marginStart="4dp"/>
-    </LinearLayout>
-
-    <!-- Second Row: Fan1 & Fan2 -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center">
+            android:textSize="16sp"/>
 
         <Button
-            android:id="@+id/btnFan1"
-            android:layout_width="0dp"
-            android:layout_weight="1"
-            android:layout_height="60dp"
+            android:id="@+id/fan1Button"
+            android:layout_width="100dp"
+            android:layout_height="100dp"
             android:text="Fan 1"
+            android:background="@drawable/button_bg"
             android:textColor="#FFFFFF"
-            android:background="@drawable/widget_button_bg"
-            android:layout_marginEnd="4dp"/>
+            android:textSize="16sp"/>
 
         <Button
-            android:id="@+id/btnFan2"
-            android:layout_width="0dp"
-            android:layout_weight="1"
-            android:layout_height="60dp"
+            android:id="@+id/fan2Button"
+            android:layout_width="100dp"
+            android:layout_height="100dp"
             android:text="Fan 2"
+            android:background="@drawable/button_bg"
             android:textColor="#FFFFFF"
-            android:background="@drawable/widget_button_bg"
-            android:layout_marginStart="4dp"/>
-    </LinearLayout>
-
+            android:textSize="16sp"/>
+    </GridLayout>
 </LinearLayout>
