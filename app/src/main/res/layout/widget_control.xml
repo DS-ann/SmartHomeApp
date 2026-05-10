@@ -1,74 +1,67 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/widget_root"
-    android:layout_width="wrap_content"
+    android:id="@+id/widgetRoot"
+    android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:background="@android:color/transparent"
-    android:padding="8dp"
-    android:gravity="center">
+    android:padding="12dp"
+    android:background="#222222">
 
-    <!-- Row for Lights -->
+    <!-- First Row: Light1 & Light2 -->
     <LinearLayout
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center"
-        android:layout_marginBottom="8dp"
-        android:weightSum="2">
+        android:layout_marginBottom="8dp">
 
         <Button
             android:id="@+id/btnLight1"
-            android:layout_width="80dp"
-            android:layout_height="80dp"
-            android:layout_margin="4dp"
-            android:background="@drawable/widget_bg"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="60dp"
             android:text="Light 1"
             android:textColor="#FFFFFF"
-            android:textSize="14sp"
-            android:allCaps="false"/>
+            android:background="@drawable/widget_button_bg"
+            android:layout_marginEnd="4dp"/>
 
         <Button
             android:id="@+id/btnLight2"
-            android:layout_width="80dp"
-            android:layout_height="80dp"
-            android:layout_margin="4dp"
-            android:background="@drawable/widget_bg"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="60dp"
             android:text="Light 2"
             android:textColor="#FFFFFF"
-            android:textSize="14sp"
-            android:allCaps="false"/>
+            android:background="@drawable/widget_button_bg"
+            android:layout_marginStart="4dp"/>
     </LinearLayout>
 
-    <!-- Row for Fans -->
+    <!-- Second Row: Fan1 & Fan2 -->
     <LinearLayout
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:gravity="center"
-        android:weightSum="2">
+        android:gravity="center">
 
         <Button
             android:id="@+id/btnFan1"
-            android:layout_width="80dp"
-            android:layout_height="80dp"
-            android:layout_margin="4dp"
-            android:background="@drawable/widget_bg"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="60dp"
             android:text="Fan 1"
             android:textColor="#FFFFFF"
-            android:textSize="14sp"
-            android:allCaps="false"/>
+            android:background="@drawable/widget_button_bg"
+            android:layout_marginEnd="4dp"/>
 
         <Button
             android:id="@+id/btnFan2"
-            android:layout_width="80dp"
-            android:layout_height="80dp"
-            android:layout_margin="4dp"
-            android:background="@drawable/widget_bg"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="60dp"
             android:text="Fan 2"
             android:textColor="#FFFFFF"
-            android:textSize="14sp"
-            android:allCaps="false"/>
+            android:background="@drawable/widget_button_bg"
+            android:layout_marginStart="4dp"/>
     </LinearLayout>
 
 </LinearLayout>
