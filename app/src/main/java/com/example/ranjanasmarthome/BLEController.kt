@@ -1,30 +1,23 @@
 package com.example.ranjanasmarthome
 
-import android.util.Log
-
 object BLEController {
 
-    private val deviceStates = mutableMapOf(
-        "L1" to false,
-        "L2" to false,
-        "F1" to false,
-        "F2" to false
-    )
+    /**
+     * Sends a command to your ESP32 via BLE or MQTT.
+     * Currently it just logs the command.
+     * Replace this with your actual BLE send implementation.
+     */
+    fun sendCommand(cmd: String) {
+        // TODO: Replace with actual BLE/MQTT send logic
+        println("BLEController: Sending command -> $cmd")
 
-    fun toggleDevice(device: String) {
-        val newState = !(deviceStates[device] ?: false)
-        deviceStates[device] = newState
-        sendCommandToBLE(device, newState)
-        Log.d("BLEController", "$device -> $newState")
-    }
-
-    fun isDeviceOn(device: String): Boolean {
-        return deviceStates[device] ?: false
-    }
-
-    private fun sendCommandToBLE(device: String, state: Boolean) {
-        // Format your BLE command here, e.g., "L1:ON"
-        val cmd = "$device:${if (state) "ON" else "OFF"}"
-        MainActivity.sendCommand(cmd)  // Call your existing BLE sending function
+        // Example for BLE (pseudo-code, replace with your actual characteristic code):
+        /*
+        if (bleRunning && deviceConnected && pTxCharacteristic != null) {
+            val bytes = cmd.toByteArray(Charsets.UTF_8)
+            pTxCharacteristic?.value = bytes
+            pTxCharacteristic?.notify()
+        }
+        */
     }
 }
