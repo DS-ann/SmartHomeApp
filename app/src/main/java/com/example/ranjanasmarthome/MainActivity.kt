@@ -74,14 +74,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // ================= WIDGET COMMAND RECEIVER =================
+    // ================= WIDGET RECEIVER =================
     private val widgetReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val cmd = intent?.getStringExtra("cmd") ?: return
-            runOnUiThread {
-                bleCommandQueue.add(cmd)
-                processQueue()
-            }
+            bleCommandQueue.add(cmd)
+            processQueue()
         }
     }
 
@@ -122,7 +120,10 @@ class MainActivity : ComponentActivity() {
     // =========================================================
     override fun onResume() {
         super.onResume()
-        registerReceiver(widgetReceiver, IntentFilter("com.example.ranjanasmarthome.SEND_BLE_CMD"))
+        registerReceiver(
+            widgetReceiver,
+            IntentFilter("com.example.ranjanasmarthome.SEND_BLE_CMD")
+        )
     }
 
     override fun onPause() {
@@ -167,7 +168,10 @@ class MainActivity : ComponentActivity() {
         @android.webkit.JavascriptInterface
         fun disconnectBLE() {
             handler.removeCallbacks(reconnectRunnable)
-            try { bluetoothGatt?.disconnect(); bluetoothGatt?.close() } catch (_: Exception) {}
+            try {
+                bluetoothGatt?.disconnect()
+                bluetoothGatt?.close()
+            } catch (_: Exception) {}
             bluetoothGatt = null
             rxCharacteristic = null
             txCharacteristic = null
@@ -247,7 +251,8 @@ class MainActivity : ComponentActivity() {
             txCharacteristic = service.getCharacteristic(CHARACTERISTIC_TX)
 
             gatt.setCharacteristicNotification(txCharacteristic, true)
-            val descriptor = txCharacteristic?.getDescriptor(UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"))
+            val descriptor =
+                txCharacteristic?.getDescriptor(UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"))
             descriptor?.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
             descriptor?.let { gatt.writeDescriptor(it) }
 
@@ -255,16 +260,20 @@ class MainActivity : ComponentActivity() {
             processQueue()
         }
 
-        override fun onCharacteristicChanged(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
+        override fun onCharacteristicChanged(
+            gatt: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic
+        ) {
             val msg = characteristic.value?.toString(Charsets.UTF_8) ?: return
             notifyJS("bleData", msg)
-
-            // Optional: Update widget state based on BLE message
-            // Example: LIGHT1_ON, FAN2_OFF etc.
-            // parseBLEState(msg)
+            // Optional: parse msg and update widget colors
         }
 
-        override fun onCharacteristicWrite(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
+        override fun onCharacteristicWrite(
+            gatt: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic,
+            status: Int
+        ) {
             isWriting = false
             processQueue()
         }
@@ -291,22 +300,6 @@ class MainActivity : ComponentActivity() {
     }
 
     // =========================================================
-    // UPDATE WIDGET STATE (Optional)
-    // =========================================================
-    private fun updateWidgetState(light1: Boolean, light2: Boolean, fan1: Boolean, fan2: Boolean) {
-        val manager = AppWidgetManager.getInstance(this)
-        val ids = manager.getAppWidgetIds(ComponentName(this, SmartHomeWidget::class.java))
-        ids.forEach { widgetId ->
-            val views = RemoteViews(packageName, R.layout.widget_control)
-            views.setTextColor(R.id.btnLight1, if(light1) Color.YELLOW else Color.WHITE)
-            views.setTextColor(R.id.btnLight2, if(light2) Color.YELLOW else Color.WHITE)
-            views.setTextColor(R.id.btnFan1, if(fan1) Color.CYAN else Color.WHITE)
-            views.setTextColor(R.id.btnFan2, if(fan2) Color.CYAN else Color.WHITE)
-            manager.updateAppWidget(widgetId, views)
-        }
-    }
-
-    // =========================================================
     // NOTIFY JS
     // =========================================================
     private fun notifyJS(event: String, data: String) {
@@ -326,7 +319,9 @@ class MainActivity : ComponentActivity() {
     // BACK BUTTON & CLEANUP
     // =========================================================
     @Deprecated("Deprecated in Java")
-    override fun onBackPressed() { if (webView.canGoBack()) webView.goBack() else super.onBackPressed() }
+    override fun onBackPressed() {
+        if (webView.canGoBack()) webView.goBack() else super.onBackPressed()
+    }
 
     override fun onDestroy() {
         super.onDestroy()
