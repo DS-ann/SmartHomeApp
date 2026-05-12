@@ -25,6 +25,10 @@ object BLEController {
                 Log.d(TAG, "Connected to ${device.address}")
             }
 
+            override fun onDeviceReady(device: BluetoothDevice) {
+                Log.d(TAG, "Device is ready: ${device.address}")
+            }
+
             override fun onDeviceDisconnecting(device: BluetoothDevice) {
                 Log.d(TAG, "Disconnecting from ${device.address}")
             }
@@ -64,7 +68,7 @@ object BLEController {
                     val fan1 = msg.getOrNull(4) == '1'
                     WidgetState.update(
                         light1 = light1,
-                        fan1Speed = if (fan1) 1 else 0
+                        fan1 = if (fan1) 1 else 0
                     )
                 }
                 msg.startsWith("b:") -> {
@@ -72,7 +76,7 @@ object BLEController {
                     val fan2 = msg.getOrNull(4) == '1'
                     WidgetState.update(
                         light2 = light2,
-                        fan2Speed = if (fan2) 1 else 0
+                        fan2 = if (fan2) 1 else 0
                     )
                 }
             }
