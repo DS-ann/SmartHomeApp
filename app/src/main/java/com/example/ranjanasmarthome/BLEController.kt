@@ -16,18 +16,17 @@ object BLEController {
         bleManager = manager
 
         // Observe connection events
-        bleManager?.observeConnection()
-            ?.subscribe(object : ConnectionObserver {
-                override fun onDeviceConnected(device: BluetoothDevice) {
-                    deviceConnected = true
-                    Log.d(TAG, "BLE connected to ${device.address}")
-                }
+        bleManager?.observeConnection(object : ConnectionObserver {
+            override fun onDeviceConnected(device: BluetoothDevice) {
+                deviceConnected = true
+                Log.d(TAG, "BLE connected to ${device.address}")
+            }
 
-                override fun onDeviceDisconnected(device: BluetoothDevice) {
-                    deviceConnected = false
-                    Log.d(TAG, "BLE disconnected from ${device.address}")
-                }
-            })
+            override fun onDeviceDisconnected(device: BluetoothDevice, reason: Int) {
+                deviceConnected = false
+                Log.d(TAG, "BLE disconnected from ${device.address}, reason $reason")
+            }
+        })
     }
 
     /** Connect to a BLE device by address */
@@ -60,16 +59,16 @@ object BLEController {
                     val light1 = msg.getOrNull(3) == '1'
                     val fan1 = msg.getOrNull(4) == '1'
                     WidgetState.onPartialUpdate(
-                        light1On = light1,
-                        fan1Speed = if (fan1) 1 else 0
+                        light1 = light1,
+                        fan1 = fan1
                     )
                 }
                 msg.startsWith("b:") -> {
                     val light2 = msg.getOrNull(3) == '1'
                     val fan2 = msg.getOrNull(4) == '1'
                     WidgetState.onPartialUpdate(
-                        light2On = light2,
-                        fan2Speed = if (fan2) 1 else 0
+                        light2 = light2,
+                        fan2 = fan2
                     )
                 }
             }
