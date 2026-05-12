@@ -33,6 +33,10 @@ object BLEController {
                 deviceConnected = false
                 Log.d(TAG, "Disconnected from ${device.address}, reason=$reason")
             }
+
+            override fun onDeviceFailedToConnect(device: BluetoothDevice, reason: Int) {
+                Log.e(TAG, "Failed to connect to ${device.address}, reason=$reason")
+            }
         })
     }
 
@@ -58,12 +62,18 @@ object BLEController {
                 msg.startsWith("a:") -> {
                     val light1 = msg.getOrNull(3) == '1'
                     val fan1 = msg.getOrNull(4) == '1'
-                    WidgetState.update(light1 = light1, fan1Speed = if (fan1) 1 else 0)
+                    WidgetState.update(
+                        light1 = light1,
+                        fan1Speed = if (fan1) 1 else 0
+                    )
                 }
                 msg.startsWith("b:") -> {
                     val light2 = msg.getOrNull(3) == '1'
                     val fan2 = msg.getOrNull(4) == '1'
-                    WidgetState.update(light2 = light2, fan2Speed = if (fan2) 1 else 0)
+                    WidgetState.update(
+                        light2 = light2,
+                        fan2Speed = if (fan2) 1 else 0
+                    )
                 }
             }
         } catch (e: Exception) {
