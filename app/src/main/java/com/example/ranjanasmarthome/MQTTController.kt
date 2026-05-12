@@ -1,54 +1,113 @@
 package com.example.ranjanasmarthome
 
+import android.content.Context
 import android.util.Log
+import org.eclipse.paho.android.service.MqttAndroidClient
 import org.eclipse.paho.client.mqttv3.*
 
 object MQTTController {
 
     private const val TAG = "MQTTController"
-    private const val BROKER = "tcp://5dba91287f8248c1a30195053d3862ed.s1.eu.hivemq.cloud:8883"
-    private const val CLIENT_ID = "AndroidWidgetClient"
-    private const val TOPIC_UPDATE = "home/esp32/update"
-    private const val TOPIC_FAN = "home/esp32/fan_status"
 
-    var onStateUpdate: ((light1: Boolean, fan1: Boolean, light2: Boolean, fan2: Boolean) -> Unit)? = null
+    // MQTT server settings (update with your credentials)
+    private const val MQTT_SERVER = "ssl://5dba91287f8248c1a30195053d3862ed.s1.eu.hivemq.cloud:8883"
+    private const val MQTT_USER = "Debarghya_Sannigrahi"
+    private const val MQTT_PASSWORD = "Dsann#5956"
 
-    private var client: MqttClient? = null
+    private const val CLIENT_ID = "AndroidSmartHomeApp"
 
-    fun connect() {
-        try {
-            client = MqttClient(BROKER, CLIENT_ID, null)
-            val options = MqttConnectOptions()
-            options.isCleanSession = true
-            options.userName = "Debarghya_Sannigrahi"
-            options.password = "Dsann#5956".toCharArray()
-            client?.setCallback(object: MqttCallback {
-                override fun connectionLost(cause: Throwable?) {}
-                override fun deliveryComplete(token: IMqttDeliveryToken?) {}
-                override fun messageArrived(topic: String?, message: MqttMessage?) {
-                    message?.let {
-                        parseESPMessage(String(it.payload))
-                    }
-                }
-            })
-            client?.connect(options)
-            client?.subscribe(TOPIC_UPDATE)
-            client?.subscribe(TOPIC_FAN)
-        } catch(e: Exception) {
-            Log.e(TAG, "MQTT connect failed: ${e.message}")
+    // Topics
+    const val TOPIC_CMD = "home/esp32/commands"
+    const val TOPIC_UPDATE = "home/esp32/update"
+
+    private var mqttClient: MqttAndroidClient? = null
+    private var isConnected = false
+
+    /**
+     * Initialize MQTT client and connect
+     */
+    fun init(context: Context) {
+        if (mqttClient != null) return // Already initialized
+
+        mqttClient = MqttAndroidClient(context.applicationContext, MQTT_SERVER, CLIENT_ID)
+        mqttClient?.setCallback(object : MqttCallback {
+            override fun connectionLost(cause: Throwable?) {
+                Log.w(TAG, "MQTT connection lost: ${cause?.message}")
+                isConnected = false
+                reconnect()
+            }
+
+            override fun messageArrived(topic: String?, message: MqttMessage?) {
+                if (topic == null || message == null) return
+                val payload = message.toString()
+                Log.d(TAG, "MQTT message arrived: $topic -> $payload")
+
+                // Forward to BLEController to update widget state
+                BLEController.updateStateFromESP(payload)
+            }
+
+            override fun deliveryComplete(token: IMqttDeliveryToken?) {
+                // optional: log delivery success
+            }
+        })
+
+        connect()
+    }
+
+    private fun connect() {
+        val options = MqttConnectOptions().apply {
+            userName = MQTT_USER
+            password = MQTT_PASSWORD.toCharArray()
+            isAutomaticReconnect = true
+            isCleanSession = true
+        }
+
+        mqttClient?.connect(options, null, object : IMqttActionListener {
+            override fun onSuccess(asyncActionToken: IMqttToken?) {
+                Log.d(TAG, "MQTT connected")
+                isConnected = true
+                subscribeToTopics()
+            }
+
+            override fun onFailure(asyncActionToken: IMqttToken?, exception: Throwable?) {
+                Log.e(TAG, "MQTT connection failed: ${exception?.message}")
+                isConnected = false
+            }
+        })
+    }
+
+    private fun reconnect() {
+        mqttClient?.let {
+            if (!it.isConnected) {
+                Log.d(TAG, "Reconnecting MQTT...")
+                connect()
+            }
         }
     }
 
-    fun sendCommand(cmd: String) {
-        try { client?.publish("home/esp32/commands", MqttMessage(cmd.toByteArray())) } catch(_: Exception) {}
+    private fun subscribeToTopics() {
+        try {
+            mqttClient?.subscribe(TOPIC_UPDATE, 0)
+            mqttClient?.subscribe(TOPIC_CMD, 0)
+            Log.d(TAG, "Subscribed to topics")
+        } catch (e: MqttException) {
+            Log.e(TAG, "Failed to subscribe: ${e.message}")
+        }
     }
 
-    private fun parseESPMessage(msg: String) {
-        val light1 = msg.getOrNull(msg.indexOf("R") + 0 + 0) == '1' // relay0
-        val fan1   = msg.getOrNull(msg.indexOf("R") + 0 + 1) == '1' // relay1
-        val light2 = msg.getOrNull(msg.indexOf("R", 1) + 0 + 0) == '1' // relay4
-        val fan2   = msg.getOrNull(msg.indexOf("R", 1) + 0 + 1) == '1' // relay5
-
-        onStateUpdate?.invoke(light1, fan1, light2, fan2)
+    /**
+     * Publish command to ESP32
+     */
+    fun sendCommand(cmd: String) {
+        if (!isConnected) {
+            Log.w(TAG, "MQTT not connected, cannot send command")
+            return
+        }
+        try {
+            mqttClient?.publish(TOPIC_CMD, cmd.toByteArray(), 0, true)
+            Log.d(TAG, "MQTT command sent: $cmd")
+        } catch (e: MqttException) {
+            Log.e(TAG, "Failed to send MQTT command: ${e.message}")
+        }
     }
 }
