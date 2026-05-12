@@ -23,29 +23,33 @@ object MQTTController {
     // Callback for widget/other components
     var onStateUpdate: ((light1: Boolean, fan1: Boolean, light2: Boolean, fan2: Boolean) -> Unit)? = null
 
-    // Local state of relays
+    // Local state of devices
     private var light1State = false
     private var fan1State = false
     private var light2State = false
     private var fan2State = false
 
+    /** Initialize MQTT client */
     fun init(context: Context) {
-        client = MqttAndroidClient(context, SERVER_URI, CLIENT_ID)
-        client.setCallback(object : MqttCallback {
-            override fun connectionLost(cause: Throwable?) {
-                Log.e(TAG, "MQTT lost connection: $cause")
-                isConnected = false
-            }
+        client = MqttAndroidClient(context, SERVER_URI, CLIENT_ID).apply {
+            setCallback(object : MqttCallback {
+                override fun connectionLost(cause: Throwable?) {
+                    Log.e(TAG, "MQTT lost connection: $cause")
+                    isConnected = false
+                    // Automatic reconnect handled by options
+                }
 
-            override fun messageArrived(topic: String?, message: MqttMessage?) {
-                message?.let { decodeMessage(it.toString()) }
-            }
+                override fun messageArrived(topic: String?, message: MqttMessage?) {
+                    message?.toString()?.let { decodeMessage(it) }
+                }
 
-            override fun deliveryComplete(token: IMqttDeliveryToken?) {}
-        })
+                override fun deliveryComplete(token: IMqttDeliveryToken?) {}
+            })
+        }
         connect()
     }
 
+    /** Connect to MQTT broker with automatic reconnect */
     fun connect() {
         if (!::client.isInitialized) return
 
@@ -55,16 +59,13 @@ object MQTTController {
             isAutomaticReconnect = true
             isCleanSession = true
         }
+
         try {
             client.connect(options, null, object : IMqttActionListener {
                 override fun onSuccess(asyncActionToken: IMqttToken?) {
                     Log.d(TAG, "MQTT connected")
                     isConnected = true
-                    try {
-                        client.subscribe(TOPIC_UPDATE, 0)
-                    } catch (e: MqttException) {
-                        Log.e(TAG, "Failed to subscribe", e)
-                    }
+                    subscribeToUpdates()
                 }
 
                 override fun onFailure(asyncActionToken: IMqttToken?, exception: Throwable?) {
@@ -77,8 +78,23 @@ object MQTTController {
         }
     }
 
+    /** Subscribe to the state update topic */
+    private fun subscribeToUpdates() {
+        try {
+            client.subscribe(TOPIC_UPDATE, 0) { topic, message ->
+                decodeMessage(message.toString())
+            }
+        } catch (e: MqttException) {
+            Log.e(TAG, "Failed to subscribe to $TOPIC_UPDATE", e)
+        }
+    }
+
+    /** Send a command to ESP32 */
     fun sendCommand(cmd: String) {
-        if (!isConnected) return
+        if (!isConnected) {
+            Log.w(TAG, "Cannot send command, MQTT not connected")
+            return
+        }
         try {
             client.publish(TOPIC_CMD, cmd.toByteArray(), 0, false)
         } catch (e: MqttException) {
@@ -86,26 +102,36 @@ object MQTTController {
         }
     }
 
+    /** Decode incoming MQTT messages and update widget state */
     private fun decodeMessage(msg: String) {
         try {
             when {
                 msg.startsWith("a:") -> {
-                    // First 4 relays: Light1 (0), Fan1 (1)
                     light1State = msg.getOrNull(3) == '1'
                     fan1State = msg.getOrNull(4) == '1'
                 }
                 msg.startsWith("b:") -> {
-                    // Next 4 relays: Light2 (4), Fan2 (5)
                     light2State = msg.getOrNull(3) == '1'
                     fan2State = msg.getOrNull(4) == '1'
                 }
             }
-
-            // Send combined state to widget/other listeners
+            // Notify listeners
             onStateUpdate?.invoke(light1State, fan1State, light2State, fan2State)
-
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to decode message: $msg", e)
+            Log.e(TAG, "Failed to decode MQTT message: $msg", e)
+        }
+    }
+
+    /** Disconnect cleanly */
+    fun disconnect() {
+        try {
+            if (::client.isInitialized && isConnected) {
+                client.disconnect()
+                isConnected = false
+                Log.d(TAG, "MQTT disconnected")
+            }
+        } catch (e: MqttException) {
+            Log.e(TAG, "Failed to disconnect MQTT", e)
         }
     }
 }
