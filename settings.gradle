@@ -1,29 +1,19 @@
 pluginManagement {
-
     repositories {
-
         google()
-
         mavenCentral()
-
         gradlePluginPortal()
     }
 }
 
 dependencyResolutionManagement {
-
-    repositoriesMode.set(
-        RepositoriesMode.FAIL_ON_PROJECT_REPOS
-    )
-
+    // Enforce usage of only the settings repositories
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
-
         google()
-
         mavenCentral()
     }
 }
 
 rootProject.name = "SmartHomeApp"
-
-include ':app'
+include(":app")
