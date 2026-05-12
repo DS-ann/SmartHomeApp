@@ -34,29 +34,22 @@ android {
         jvmTarget = '17'
     }
 
-    buildFeatures {
-        viewBinding true
-    }
-}
-
-repositories {
-    mavenCentral() // Nordic BLE library is hosted here
-    google()
+    // Optional: enable view binding if you plan to use it
+    // buildFeatures {
+    //     viewBinding true
+    // }
 }
 
 dependencies {
+    // AndroidX core
     implementation 'androidx.core:core-ktx:1.13.1'
     implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'com.google.android.material:material:1.12.0'
     implementation 'androidx.activity:activity-ktx:1.9.0'
 
-    // -------- MQTT Paho Android --------
+    // MQTT Paho
     implementation 'org.eclipse.paho:org.eclipse.paho.android.service:1.1.1'
     implementation 'org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5'
 
-    // -------- Nordic BLE Library --------
-    implementation 'no.nordicsemi.android:ble:2.4.4'
-
-    // Optional: Kotlin Coroutines (useful for async BLE or MQTT)
-    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+    // BLE: Android BLE API is native; no extra dependency needed
 }
