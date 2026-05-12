@@ -7,6 +7,9 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.widget.RemoteViews
+import android.util.Log
+
+private const val TAG = "SmartHomeWidget"
 
 class SmartHomeWidget : AppWidgetProvider() {
 
@@ -17,7 +20,6 @@ class SmartHomeWidget : AppWidgetProvider() {
         const val ACTION_FAN2 = "ACTION_FAN2"
     }
 
-    // Tracks toggle state locally for sending commands
     private val toggleState = mutableMapOf(
         ACTION_LIGHT1 to false,
         ACTION_LIGHT2 to false,
@@ -37,11 +39,18 @@ class SmartHomeWidget : AppWidgetProvider() {
             appWidgetManager.updateAppWidget(id, views)
         }
 
-        // Register BLE & MQTT update callbacks
-        BLEController.onStateUpdate = { l1, f1, l2, f2 -> updateWidgetUI(context, l1, f1, l2, f2) }
-        MQTTController.onStateUpdate = { l1, f1, l2, f2 -> updateWidgetUI(context, l1, f1, l2, f2) }
+        // Register BLE & MQTT callbacks
+        BLEController.onStateUpdate = { l1, f1, l2, f2 ->
+            Log.d(TAG, "BLE update: L1=$l1 F1=$f1 L2=$l2 F2=$f2")
+            updateWidgetUI(context, l1, f1, l2, f2)
+        }
 
-        // Connect MQTT if not connected
+        MQTTController.onStateUpdate = { l1, f1, l2, f2 ->
+            Log.d(TAG, "MQTT update: L1=$l1 F1=$f1 L2=$l2 F2=$f2")
+            updateWidgetUI(context, l1, f1, l2, f2)
+        }
+
+        // Connect MQTT if needed
         MQTTController.connect()
     }
 
@@ -51,29 +60,31 @@ class SmartHomeWidget : AppWidgetProvider() {
 
         when (action) {
             ACTION_LIGHT1 -> toggleRelay(context, 0, ACTION_LIGHT1)
-            ACTION_LIGHT2 -> toggleRelay(context, 4, ACTION_LIGHT2)
             ACTION_FAN1   -> toggleRelay(context, 1, ACTION_FAN1)
+            ACTION_LIGHT2 -> toggleRelay(context, 4, ACTION_LIGHT2)
             ACTION_FAN2   -> toggleRelay(context, 5, ACTION_FAN2)
         }
     }
 
     private fun toggleRelay(context: Context, relayIndex: Int, actionKey: String) {
-        val newState = !toggleState[actionKey]!!
+        val newState = !(toggleState[actionKey] ?: false)
         toggleState[actionKey] = newState
+
         val cmd = "$relayIndex${if (newState) 1 else 0}"
 
-        // Send commands to both BLE and MQTT
+        // Send command to BLE & MQTT
         BLEController.sendCommand(cmd)
         MQTTController.sendCommand(cmd)
 
-        // Immediately update widget UI to reflect new state
+        // Update widget UI immediately
         val currentState = getCurrentWidgetState()
-        when (relayIndex) {
-            0 -> updateWidgetUI(context, newState, currentState.fan1, currentState.light2, currentState.fan2)
-            4 -> updateWidgetUI(context, currentState.light1, currentState.fan1, newState, currentState.fan2)
-            1 -> updateWidgetUI(context, currentState.light1, newState, currentState.light2, currentState.fan2)
-            5 -> updateWidgetUI(context, currentState.light1, currentState.fan1, currentState.light2, newState)
-        }
+        updateWidgetUI(
+            context,
+            currentState.light1,
+            currentState.fan1,
+            currentState.light2,
+            currentState.fan2
+        )
     }
 
     private fun updateWidgetUI(context: Context, l1: Boolean, f1: Boolean, l2: Boolean, f2: Boolean) {
@@ -102,7 +113,6 @@ class SmartHomeWidget : AppWidgetProvider() {
         )
     }
 
-    // Query current toggleState to use for UI update
     private fun getCurrentWidgetState(): WidgetStateData {
         return WidgetStateData(
             light1 = toggleState[ACTION_LIGHT1] ?: false,
