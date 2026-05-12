@@ -1,61 +1,55 @@
 plugins {
-
     id 'com.android.application'
-
     id 'org.jetbrains.kotlin.android'
 }
 
 android {
-
     namespace 'com.example.ranjanasmarthome'
-
     compileSdk 35
 
     defaultConfig {
-
         applicationId "com.example.ranjanasmarthome"
-
         minSdk 26
         targetSdk 35
-
         versionCode 1
         versionName "1.0"
     }
 
     buildTypes {
-
         release {
-
             minifyEnabled false
-
             proguardFiles(
-                getDefaultProguardFile(
-                    'proguard-android-optimize.txt'
-                ),
+                getDefaultProguardFile('proguard-android-optimize.txt'),
                 'proguard-rules.pro'
             )
         }
     }
 
     compileOptions {
-
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
 
     kotlinOptions {
-
         jvmTarget = '17'
     }
+
+    // Optional: enable view binding if needed
+    // buildFeatures {
+    //     viewBinding true
+    // }
 }
 
 dependencies {
-
     implementation 'androidx.core:core-ktx:1.13.1'
-
     implementation 'androidx.appcompat:appcompat:1.7.0'
-
     implementation 'com.google.android.material:material:1.12.0'
-
     implementation 'androidx.activity:activity-ktx:1.9.0'
+
+    // -------- MQTT Paho Android --------
+    implementation 'org.eclipse.paho:org.eclipse.paho.android.service:1.1.1'
+    implementation 'org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5'
+
+    // -------- BLE support (NimBLE is handled in ESP32, optional on Android) --------
+    // For Android BLE API, core Android SDK suffices
 }
