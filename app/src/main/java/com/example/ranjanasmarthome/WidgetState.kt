@@ -3,16 +3,16 @@ package com.example.ranjanasmarthome
 object WidgetState {
 
     // Callback for UI updates
-    var onStateUpdate: ((light1: Boolean, fan1: Boolean, light2: Boolean, fan2: Boolean) -> Unit)? = null
+    var onStateUpdate: ((light1: Boolean, fan1: Int, light2: Boolean, fan2: Int) -> Unit)? = null
 
     // Internal state
     private var light1: Boolean = false
-    private var fan1: Boolean = false
+    private var fan1: Int = 0
     private var light2: Boolean = false
-    private var fan2: Boolean = false
+    private var fan2: Int = 0
 
     // Update full state
-    fun update(light1: Boolean, fan1: Boolean, light2: Boolean, fan2: Boolean) {
+    fun update(light1: Boolean, fan1: Int, light2: Boolean, fan2: Int) {
         this.light1 = light1
         this.fan1 = fan1
         this.light2 = light2
@@ -23,9 +23,9 @@ object WidgetState {
     // Partial update: only fields that are not null will change
     fun onPartialUpdate(
         light1: Boolean? = null,
-        fan1: Boolean? = null,
+        fan1: Int? = null,
         light2: Boolean? = null,
-        fan2: Boolean? = null
+        fan2: Int? = null
     ) {
         light1?.let { this.light1 = it }
         fan1?.let { this.fan1 = it }
@@ -46,8 +46,8 @@ object WidgetState {
 
     data class StateData(
         val light1: Boolean,
-        val fan1: Boolean,
+        val fan1: Int,
         val light2: Boolean,
-        val fan2: Boolean
+        val fan2: Int
     )
 }
