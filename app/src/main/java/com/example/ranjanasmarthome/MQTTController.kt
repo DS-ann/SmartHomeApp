@@ -20,6 +20,15 @@ object MQTTController {
     var isConnected = false
         private set
 
+    // Callback for widget/other components
+    var onStateUpdate: ((light1: Boolean, fan1: Boolean, light2: Boolean, fan2: Boolean) -> Unit)? = null
+
+    // Local state of relays
+    private var light1State = false
+    private var fan1State = false
+    private var light2State = false
+    private var fan2State = false
+
     fun init(context: Context) {
         client = MqttAndroidClient(context, SERVER_URI, CLIENT_ID)
         client.setCallback(object : MqttCallback {
@@ -37,7 +46,9 @@ object MQTTController {
         connect()
     }
 
-    private fun connect() {
+    fun connect() {
+        if (!::client.isInitialized) return
+
         val options = MqttConnectOptions().apply {
             userName = USER
             password = PASSWORD.toCharArray()
@@ -49,7 +60,11 @@ object MQTTController {
                 override fun onSuccess(asyncActionToken: IMqttToken?) {
                     Log.d(TAG, "MQTT connected")
                     isConnected = true
-                    client.subscribe(TOPIC_UPDATE, 0)
+                    try {
+                        client.subscribe(TOPIC_UPDATE, 0)
+                    } catch (e: MqttException) {
+                        Log.e(TAG, "Failed to subscribe", e)
+                    }
                 }
 
                 override fun onFailure(asyncActionToken: IMqttToken?, exception: Throwable?) {
@@ -62,40 +77,35 @@ object MQTTController {
         }
     }
 
-    fun publishCommand(cmd: String) {
-        if (isConnected) {
-            try {
-                client.publish(TOPIC_CMD, cmd.toByteArray(), 0, false)
-            } catch (e: MqttException) {
-                Log.e(TAG, "Failed to publish $cmd", e)
-            }
+    fun sendCommand(cmd: String) {
+        if (!isConnected) return
+        try {
+            client.publish(TOPIC_CMD, cmd.toByteArray(), 0, false)
+        } catch (e: MqttException) {
+            Log.e(TAG, "Failed to send command: $cmd", e)
         }
     }
-private fun decodeMessage(msg: String) {
-    try {
-        when {
-            msg.startsWith("a:") -> {
-                // First 4 relays → Light1 (0), Fan1 (1)
-                val light1 = msg.getOrNull(3) == '1' // relay 0
-                val fan1 = msg.getOrNull(4) == '1'   // relay 1
 
-                WidgetState.onPartialUpdate(
-                    light1On = light1,
-                    fan1Speed = if (fan1) 1 else 0
-                )
+    private fun decodeMessage(msg: String) {
+        try {
+            when {
+                msg.startsWith("a:") -> {
+                    // First 4 relays: Light1 (0), Fan1 (1)
+                    light1State = msg.getOrNull(3) == '1'
+                    fan1State = msg.getOrNull(4) == '1'
+                }
+                msg.startsWith("b:") -> {
+                    // Next 4 relays: Light2 (4), Fan2 (5)
+                    light2State = msg.getOrNull(3) == '1'
+                    fan2State = msg.getOrNull(4) == '1'
+                }
             }
-            msg.startsWith("b:") -> {
-                // Next 4 relays → Light2 (4), Fan2 (5)
-                val light2 = msg.getOrNull(3) == '1' // relay 4
-                val fan2 = msg.getOrNull(4) == '1'   // relay 5
 
-                WidgetState.onPartialUpdate(
-                    light2On = light2,
-                    fan2Speed = if (fan2) 1 else 0
-                )
-            }
+            // Send combined state to widget/other listeners
+            onStateUpdate?.invoke(light1State, fan1State, light2State, fan2State)
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to decode message: $msg", e)
         }
-    } catch (e: Exception) {
-        Log.e(TAG, "Failed to decode message: $msg", e)
     }
 }
