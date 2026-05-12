@@ -50,7 +50,9 @@ dependencies {
     implementation 'org.eclipse.paho:org.eclipse.paho.android.service:1.1.1'
     implementation 'org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5'
 
-    // BLE support
-    // Android BLE API is enough; optional Nordic BLE library:
-    // implementation 'no.nordicsemi.android:ble:2.3.0'
+    // Nordic BLE Library
+    implementation 'no.nordicsemi.android:ble:2.3.0'
+
+    // Optional: Rx or coroutines for BLE async
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
 }
