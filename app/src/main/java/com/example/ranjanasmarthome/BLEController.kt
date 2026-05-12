@@ -1,102 +1,69 @@
 package com.example.ranjanasmarthome
 
-import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothGatt
-import android.bluetooth.BluetoothGattCallback
-import android.bluetooth.BluetoothGattCharacteristic
-import android.bluetooth.BluetoothGattService
-import android.bluetooth.BluetoothManager
-import android.content.Context
 import android.util.Log
-import java.util.*
+import no.nordicsemi.android.ble.BleManager
+import no.nordicsemi.android.ble.data.Data
+import no.nordicsemi.android.ble.observer.ConnectionObserver
+
+private const val TAG = "BLEController"
 
 object BLEController {
 
-    private const val TAG = "BLEController"
+    private var bleManager: SmartHomeBleManager? = null
+    var deviceConnected = false
 
-    // UUIDs must match your ESP32 NimBLE UUIDs
-    private val SERVICE_UUID: UUID = UUID.fromString("6e400001-b5a3-f393-e0a9-e50e24dcca9e")
-    private val CHARACTERISTIC_TX: UUID = UUID.fromString("6e400003-b5a3-f393-e0a9-e50e24dcca9e")
-    private val CHARACTERISTIC_RX: UUID = UUID.fromString("6e400002-b5a3-f393-e0a9-e50e24dcca9e")
+    fun init(manager: SmartHomeBleManager) {
+        bleManager = manager
+        bleManager?.setConnectionObserver(object : ConnectionObserver {
+            override fun onDeviceConnected(deviceAddress: String) {
+                deviceConnected = true
+                Log.d(TAG, "BLE connected to $deviceAddress")
+            }
 
-    private var bluetoothAdapter: BluetoothAdapter? = null
-    private var gatt: BluetoothGatt? = null
-    private var txCharacteristic: BluetoothGattCharacteristic? = null
-    private var rxCharacteristic: BluetoothGattCharacteristic? = null
-
-    private var context: Context? = null
-
-    fun init(context: Context) {
-        this.context = context
-        val manager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-        bluetoothAdapter = manager.adapter
+            override fun onDeviceDisconnected(deviceAddress: String) {
+                deviceConnected = false
+                Log.d(TAG, "BLE disconnected from $deviceAddress")
+            }
+        })
     }
 
-    // Connect to a device by address
     fun connect(address: String) {
-        val device = bluetoothAdapter?.getRemoteDevice(address)
-        if (device == null) {
-            Log.e(TAG, "Device not found: $address")
-            return
-        }
-        gatt = device.connectGatt(context, false, gattCallback)
+        bleManager?.connect(address)?.enqueue()
     }
 
     fun disconnect() {
-        gatt?.close()
-        gatt = null
-        txCharacteristic = null
-        rxCharacteristic = null
+        bleManager?.disconnect()?.enqueue()
     }
 
-    fun sendCommand(command: String) {
-        if (txCharacteristic == null || gatt == null) {
-            Log.e(TAG, "TX characteristic not ready")
-            return
+    fun sendCommand(cmd: String) {
+        if (deviceConnected) {
+            bleManager?.sendCommand(cmd)
         }
-        txCharacteristic?.value = command.toByteArray(Charsets.UTF_8)
-        gatt?.writeCharacteristic(txCharacteristic)
     }
 
-    // Callbacks for BLE events
-    private val gattCallback = object : BluetoothGattCallback() {
-
-        override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
-            super.onConnectionStateChange(gatt, status, newState)
-            if (newState == BluetoothGatt.STATE_CONNECTED) {
-                Log.d(TAG, "Connected to BLE device")
-                gatt.discoverServices()
-            } else if (newState == BluetoothGatt.STATE_DISCONNECTED) {
-                Log.d(TAG, "Disconnected from BLE device")
-                txCharacteristic = null
-                rxCharacteristic = null
+    // Called whenever BLE receives data
+    fun onMessageReceived(msg: String) {
+        try {
+            when {
+                msg.startsWith("a:") -> {
+                    val light1 = msg.getOrNull(3) == '1'
+                    val fan1 = msg.getOrNull(4) == '1'
+                    WidgetState.onPartialUpdate(
+                        light1On = light1,
+                        fan1Speed = if (fan1) 1 else 0
+                    )
+                }
+                msg.startsWith("b:") -> {
+                    val light2 = msg.getOrNull(3) == '1'
+                    val fan2 = msg.getOrNull(4) == '1'
+                    WidgetState.onPartialUpdate(
+                        light2On = light2,
+                        fan2Speed = if (fan2) 1 else 0
+                    )
+                }
             }
-        }
-
-        override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
-            super.onServicesDiscovered(gatt, status)
-            val service: BluetoothGattService? = gatt.getService(SERVICE_UUID)
-            if (service != null) {
-                txCharacteristic = service.getCharacteristic(CHARACTERISTIC_TX)
-                rxCharacteristic = service.getCharacteristic(CHARACTERISTIC_RX)
-                gatt.setCharacteristicNotification(rxCharacteristic, true)
-                Log.d(TAG, "BLE service and characteristics ready")
-            } else {
-                Log.e(TAG, "BLE service not found")
-            }
-        }
-
-        override fun onCharacteristicChanged(
-            gatt: BluetoothGatt,
-            characteristic: BluetoothGattCharacteristic
-        ) {
-            super.onCharacteristicChanged(gatt, characteristic)
-            if (characteristic.uuid == CHARACTERISTIC_RX) {
-                val message = characteristic.value.toString(Charsets.UTF_8)
-                Log.d(TAG, "Received BLE message: $message")
-                // Update widget state from ESP32
-                SmartHomeWidget.updateStateFromESP(message)
-            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to decode BLE message: $msg", e)
         }
     }
 }
