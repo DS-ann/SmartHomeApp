@@ -1,39 +1,28 @@
 package com.example.ranjanasmarthome
 
-import android.content.Context
+import android.util.Log
+import java.util.*
 
 object BLEController {
 
-    private var connected: Boolean = false
-    private var context: Context? = null
+    private const val TAG = "BLEController"
 
-    fun init(context: Context) {
-        this.context = context.applicationContext
-    }
+    var onStateUpdate: ((light1: Boolean, fan1: Boolean, light2: Boolean, fan2: Boolean) -> Unit)? = null
 
-    fun setConnected(state: Boolean) {
-        connected = state
-    }
-
-    fun isConnected() = connected
-
+    // Send command to ESP32 over BLE
     fun sendCommand(cmd: String) {
-        if (!connected) return
-        println("BLE command sent: $cmd")
-        // TODO: actual BLE write
+        Log.d(TAG, "Sending BLE command: $cmd")
+        // TODO: implement actual BLE write using pRxCharacteristic.setValue(cmd.toByteArray()) + notify
     }
 
-    // Call this when ESP sends relay status via BLE
-    fun onESPMessage(msg: String) {
-        context?.let { ctx ->
-            // Example parsing: "R01010000" → relay 0 ON, relay 1 OFF ...
-            if (msg.length >= 6) {
-                val light0 = msg[1] == '1'
-                val fan1 = msg[2] == '1'
-                val light4 = msg[5] == '1'
-                val fan5 = msg[6] == '1'
-                SmartHomeWidget.updateStateFromESP(light0, light4, fan1, fan5, ctx)
-            }
-        }
+    // Call this from BLE callback when ESP32 sends update
+    fun receiveESPMessage(msg: String) {
+        // Parse messages like a:R1010,... b:R0101,...
+        val light1 = msg.getOrNull(msg.indexOf("R") + 0 + 0) == '1' // relay0
+        val fan1   = msg.getOrNull(msg.indexOf("R") + 0 + 1) == '1' // relay1
+        val light2 = msg.getOrNull(msg.indexOf("R", 1) + 0 + 0) == '1' // relay4
+        val fan2   = msg.getOrNull(msg.indexOf("R", 1) + 0 + 1) == '1' // relay5
+
+        onStateUpdate?.invoke(light1, fan1, light2, fan2)
     }
 }
