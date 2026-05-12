@@ -17,26 +17,27 @@ object MQTTController {
     private const val TOPIC_UPDATE = "home/esp32/update"
 
     private lateinit var client: MqttAndroidClient
-    var isConnected = false
+
+    // Mutable connection state
+    var isConnected: Boolean = false
         private set
 
     // Callback for widget/other components
     var onStateUpdate: ((light1: Boolean, fan1: Boolean, light2: Boolean, fan2: Boolean) -> Unit)? = null
 
-    // Local state of devices
+    // Local device state
     private var light1State = false
     private var fan1State = false
     private var light2State = false
     private var fan2State = false
 
-    /** Initialize MQTT client */
+    /** Initialize MQTT client and start connection */
     fun init(context: Context) {
         client = MqttAndroidClient(context, SERVER_URI, CLIENT_ID).apply {
             setCallback(object : MqttCallback {
                 override fun connectionLost(cause: Throwable?) {
                     Log.e(TAG, "MQTT lost connection: $cause")
                     isConnected = false
-                    // Automatic reconnect handled by options
                 }
 
                 override fun messageArrived(topic: String?, message: MqttMessage?) {
@@ -49,7 +50,7 @@ object MQTTController {
         connect()
     }
 
-    /** Connect to MQTT broker with automatic reconnect */
+    /** Connect to MQTT broker */
     fun connect() {
         if (!::client.isInitialized) return
 
@@ -78,10 +79,10 @@ object MQTTController {
         }
     }
 
-    /** Subscribe to the state update topic */
+    /** Subscribe to ESP32 update topic */
     private fun subscribeToUpdates() {
         try {
-            client.subscribe(TOPIC_UPDATE, 0) { topic, message ->
+            client.subscribe(TOPIC_UPDATE, 0) { _, message ->
                 decodeMessage(message.toString())
             }
         } catch (e: MqttException) {
@@ -102,7 +103,7 @@ object MQTTController {
         }
     }
 
-    /** Decode incoming MQTT messages and update widget state */
+    /** Decode messages from ESP32 and update local state */
     private fun decodeMessage(msg: String) {
         try {
             when {
@@ -115,14 +116,13 @@ object MQTTController {
                     fan2State = msg.getOrNull(4) == '1'
                 }
             }
-            // Notify listeners
             onStateUpdate?.invoke(light1State, fan1State, light2State, fan2State)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to decode MQTT message: $msg", e)
         }
     }
 
-    /** Disconnect cleanly */
+    /** Disconnect from MQTT broker */
     fun disconnect() {
         try {
             if (::client.isInitialized && isConnected) {
