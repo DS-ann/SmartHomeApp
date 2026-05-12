@@ -5,7 +5,6 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.content.Context
 import android.util.Log
 import no.nordicsemi.android.ble.BleManager
-import no.nordicsemi.android.ble.BleManager.BleManagerGattCallback
 import no.nordicsemi.android.ble.data.Data
 import java.util.*
 
@@ -34,8 +33,8 @@ class SmartHomeBleManager(context: Context) : BleManager(context) {
         }
 
         override fun initialize() {
-            // Enable notifications on TX characteristic
             txCharacteristic?.let { characteristic ->
+                // Set up notifications for incoming data
                 setNotificationCallback(characteristic).with { _, data -> onDataReceived(data) }
                 enableNotifications(characteristic).enqueue()
             }
@@ -53,7 +52,14 @@ class SmartHomeBleManager(context: Context) : BleManager(context) {
         BLEController.onMessageReceived(msg)
     }
 
+    /** Send a command to the BLE device */
     fun sendCommand(cmd: String) {
+        val device = getBluetoothDevice()
+        if (device == null) {
+            Log.w(TAG, "Cannot send command, no device connected")
+            return
+        }
+
         rxCharacteristic?.let { characteristic ->
             writeCharacteristic(characteristic, cmd.toByteArray(Charsets.UTF_8)).enqueue()
         } ?: Log.w(TAG, "Cannot send command, RX characteristic not initialized")
