@@ -34,10 +34,14 @@ android {
         jvmTarget = '17'
     }
 
-    // Optional: enable view binding if needed
-    // buildFeatures {
-    //     viewBinding true
-    // }
+    buildFeatures {
+        viewBinding true
+    }
+}
+
+repositories {
+    mavenCentral() // Nordic BLE library is hosted here
+    google()
 }
 
 dependencies {
@@ -50,6 +54,9 @@ dependencies {
     implementation 'org.eclipse.paho:org.eclipse.paho.android.service:1.1.1'
     implementation 'org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5'
 
-    // -------- BLE support (NimBLE is handled in ESP32, optional on Android) --------
-    // For Android BLE API, core Android SDK suffices
+    // -------- Nordic BLE Library --------
+    implementation 'no.nordicsemi.android:ble:2.4.4'
+
+    // Optional: Kotlin Coroutines (useful for async BLE or MQTT)
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
 }
