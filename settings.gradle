@@ -7,11 +7,11 @@ pluginManagement {
 }
 
 dependencyResolutionManagement {
-    // Enforce usage of only the settings repositories
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS) // allow project fallback
     repositories {
         google()
         mavenCentral()
+        gradlePluginPortal()
     }
 }
 
