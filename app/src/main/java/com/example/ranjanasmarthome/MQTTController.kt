@@ -16,21 +16,19 @@ object MQTTController {
     private const val TOPIC_CMD = "home/esp32/commands"
     private const val TOPIC_UPDATE = "home/esp32/update"
 
-    // MQTT client
     private lateinit var client: MqttAndroidClient
 
-    // Mutable connection state
     var isConnected: Boolean = false
         private set
 
-    // Callback for UI updates
-    var onStateUpdate: ((light1: Boolean, fan1: Int, light2: Boolean, fan2: Int) -> Unit)? = null
+    // Callback for UI updates: Booleans for lights and fans
+    var onStateUpdate: ((light1: Boolean, fan1: Boolean, light2: Boolean, fan2: Boolean) -> Unit)? = null
 
     // Local device state
     private var light1State: Boolean = false
-    private var fan1State: Int = 0
+    private var fan1State: Boolean = false
     private var light2State: Boolean = false
-    private var fan2State: Int = 0
+    private var fan2State: Boolean = false
 
     /** Initialize MQTT client */
     fun init(context: Context) {
@@ -110,15 +108,15 @@ object MQTTController {
             when {
                 msg.startsWith("a:") -> {
                     light1State = msg.getOrNull(3) == '1'
-                    fan1State = if (msg.getOrNull(4) == '1') 1 else 0
+                    fan1State = msg.getOrNull(4) == '1'
                 }
                 msg.startsWith("b:") -> {
                     light2State = msg.getOrNull(3) == '1'
-                    fan2State = if (msg.getOrNull(4) == '1') 1 else 0
+                    fan2State = msg.getOrNull(4) == '1'
                 }
             }
 
-            // Notify UI listeners safely
+            // Notify UI listeners with Boolean states
             onStateUpdate?.invoke(light1State, fan1State, light2State, fan2State)
 
         } catch (e: Exception) {
