@@ -66,17 +66,19 @@ object BLEController {
                 msg.startsWith("a:") -> {
                     val light1 = msg.getOrNull(3) == '1'
                     val fan1 = msg.getOrNull(4) == '1'
-                    WidgetState.update(
+                    // Only update light1 and fan1
+                    WidgetState.onPartialUpdate(
                         light1 = light1,
-                        fan1 = if (fan1) 1 else 0
+                        fan1 = fan1
                     )
                 }
                 msg.startsWith("b:") -> {
                     val light2 = msg.getOrNull(3) == '1'
                     val fan2 = msg.getOrNull(4) == '1'
-                    WidgetState.update(
+                    // Only update light2 and fan2
+                    WidgetState.onPartialUpdate(
                         light2 = light2,
-                        fan2 = if (fan2) 1 else 0
+                        fan2 = fan2
                     )
                 }
             }
