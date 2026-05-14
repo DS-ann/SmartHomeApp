@@ -20,6 +20,7 @@ class SmartHomeBleManager(context: Context) : BleManager(context) {
     private var txCharacteristic: BluetoothGattCharacteristic? = null
     private var rxCharacteristic: BluetoothGattCharacteristic? = null
 
+    /** Callback object for BLE notifications */
     override fun getGattCallback(): BleManagerGattCallback = object : BleManagerGattCallback() {
 
         override fun isRequiredServiceSupported(gatt: BluetoothGatt): Boolean {
@@ -34,7 +35,7 @@ class SmartHomeBleManager(context: Context) : BleManager(context) {
 
         override fun initialize() {
             txCharacteristic?.let { characteristic ->
-                // Enable notifications for TX characteristic (device → phone)
+                // Enable notifications (device → phone)
                 setNotificationCallback(characteristic).with { _, data ->
                     onDataReceived(data)
                 }
@@ -57,14 +58,14 @@ class SmartHomeBleManager(context: Context) : BleManager(context) {
     }
 
     private fun onDataReceived(data: Data) {
-        val msg = data.value?.toString(Charsets.UTF_8)
+        val msg = data.value?.toString(Charsets.UTF_8)?.trim()
         if (!msg.isNullOrEmpty()) {
             Log.d(TAG, "Received BLE message: $msg")
             BLEController.onMessageReceived(msg)
         }
     }
 
-    /** Send a command to the BLE device */
+    /** Send a command string to BLE device */
     fun sendCommand(cmd: String) {
         val device = getBluetoothDevice()
         if (device == null || !isConnected) {
@@ -78,4 +79,8 @@ class SmartHomeBleManager(context: Context) : BleManager(context) {
                 .enqueue()
         } ?: Log.w(TAG, "Cannot send command, RX characteristic not initialized")
     }
+
+    /** Expose isConnected for external classes (BLEController) */
+    val isConnectedExternal: Boolean
+        get() = isConnected
 }
