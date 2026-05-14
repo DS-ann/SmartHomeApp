@@ -1,4 +1,4 @@
-name: Build & Publish APKs
+name: Build Android APK
 
 on:
   push:
@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ================= Checkout Repository =================
+      # ================= Checkout =================
       - name: Checkout Repository
         uses: actions/checkout@v4
 
@@ -27,54 +27,50 @@ jobs:
       - name: Make Gradlew Executable
         run: chmod +x gradlew
 
-      # ================= Build APK =================
+      # ================= Build Debug APK =================
       - name: Build Debug APK
         run: ./gradlew assembleDebug --parallel --daemon
 
-      # ================= Upload APK as Artifact =================
-      - name: Upload APK Artifact
+      # ================= Upload APK Artifact =================
+      - name: Upload APK as Artifact
         uses: actions/upload-artifact@v4
         with:
           name: RanjanaSmartHome-APK
           path: app/build/outputs/apk/debug/app-debug.apk
 
-      # ================= Prepare deploy folder =================
-      - name: Prepare deploy folder
-        run: |
-          mkdir -p deploy
-          cp app/build/outputs/apk/debug/app-debug.apk deploy/RanjanaSmartHome-${{ github.run_number }}.apk
-
-      # ================= Keep only last 10 APKs =================
-      - name: Trim old APKs
-        run: |
-          cd deploy
-          ls -tp | grep -v '/$' | tail -n +11 | xargs -I {} rm -- {}
-          cd ..
-
       # ================= Generate index.html =================
-      - name: Generate index.html
-        run: |
-          cd deploy
-          echo "<!DOCTYPE html>
+     - name: Generate index.html for APK downloads
+  run: |
+    mkdir -p deploy
+    cd deploy
+
+    cat << 'EOF' > index.html
+<!DOCTYPE html>
 <html>
 <head><title>Ranjana Smart Home APKs</title></head>
 <body>
 <h1>Available APKs (newest first)</h1>
-<ul>" > index.html
+<ul>
+EOF
 
-          for apk in $(ls -t RanjanaSmartHome-*.apk); do
-            size=$(du -h "$apk" | cut -f1)
-            echo "<li><a href=\"$apk\">$apk</a> ($size)</li>" >> index.html
-          done
+    # Copy APKs and add links
+    for apk in $(ls -t ../app/build/outputs/apk/debug/*.apk); do
+      size=$(du -h "$apk" | cut -f1)
+      base=$(basename "$apk")
+      cp "$apk" .
+      echo "<li><a href=\"$base\">$base</a> ($size)</li>" >> index.html
+    done
 
-          echo "</ul>
+    cat << 'EOF' >> index.html
+</ul>
 </body>
-</html>" >> index.html
-          cd ..
+</html>
+EOF
 
-      # ================= Deploy to GitHub Pages =================
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v6
+    cd ..
+      # ================= Upload deploy folder as artifact =================
+      - name: Upload deploy folder as Artifact
+        uses: actions/upload-artifact@v4
         with:
-          publish_dir: deploy
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          name: RanjanaSmartHome-deploy
+          path: deploy/
