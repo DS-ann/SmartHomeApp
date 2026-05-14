@@ -18,18 +18,20 @@ object MQTTController {
 
     private lateinit var client: MqttAndroidClient
 
+    // Mutable connection state
     var isConnected: Boolean = false
         private set
 
-    // Callback for UI updates (fans are Int now)
+    // Callback for UI updates
     var onStateUpdate: ((light1: Boolean, fan1: Int, light2: Boolean, fan2: Int) -> Unit)? = null
 
-    // Local device state
-    private var light1State = false
-    private var fan1State = 0
-    private var light2State = false
-    private var fan2State = 0
+    // Local device state (mutable)
+    private var light1State: Boolean = false
+    private var fan1State: Int = 0
+    private var light2State: Boolean = false
+    private var fan2State: Int = 0
 
+    /** Initialize MQTT client */
     fun init(context: Context) {
         client = MqttAndroidClient(context, SERVER_URI, CLIENT_ID).apply {
             setCallback(object : MqttCallback {
@@ -48,6 +50,7 @@ object MQTTController {
         connect()
     }
 
+    /** Connect to MQTT broker */
     fun connect() {
         if (!::client.isInitialized) return
 
@@ -76,6 +79,7 @@ object MQTTController {
         }
     }
 
+    /** Subscribe to the ESP32 update topic */
     private fun subscribeToUpdates() {
         try {
             client.subscribe(TOPIC_UPDATE, 0) { _, message ->
@@ -86,6 +90,7 @@ object MQTTController {
         }
     }
 
+    /** Send a command to ESP32 */
     fun sendCommand(cmd: String) {
         if (!isConnected) {
             Log.w(TAG, "Cannot send command, MQTT not connected")
@@ -98,6 +103,7 @@ object MQTTController {
         }
     }
 
+    /** Decode incoming MQTT messages and update state */
     private fun decodeMessage(msg: String) {
         try {
             when {
@@ -110,12 +116,14 @@ object MQTTController {
                     fan2State = if (msg.getOrNull(4) == '1') 1 else 0
                 }
             }
+            // Notify listeners
             onStateUpdate?.invoke(light1State, fan1State, light2State, fan2State)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to decode MQTT message: $msg", e)
         }
     }
 
+    /** Disconnect cleanly */
     fun disconnect() {
         try {
             if (::client.isInitialized && isConnected) {
