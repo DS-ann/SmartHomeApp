@@ -88,11 +88,19 @@ class MainActivity : ComponentActivity() {
             ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
         }
 
-    /** Start the foreground service handling BLE + MQTT */
+    /** Start the foreground service handling BLE + MQTT safely */
     private fun startSmartHomeService() {
-        val serviceIntent = Intent(this, SmartHomeService::class.java)
-        startForegroundService(serviceIntent)
-        Toast.makeText(this, "Smart Home Service started", Toast.LENGTH_SHORT).show()
+        try {
+            val serviceIntent = Intent(this, SmartHomeService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
+            } else {
+                startService(serviceIntent)
+            }
+            Toast.makeText(this, "Smart Home Service started", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start service: ${e.message}", e)
+        }
     }
 
     /** Update WebView UI safely */
@@ -136,13 +144,14 @@ class MainActivity : ComponentActivity() {
         @android.webkit.JavascriptInterface
         fun startBLE() {
             runOnUiThread {
-                Toast.makeText(activity, "Starting BLE scan in background...", Toast.LENGTH_SHORT).show()
+                Toast.makeText(activity, "BLE scanning is handled in background service", Toast.LENGTH_SHORT).show()
             }
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        // Only disconnect UI-level BLE if you need; service keeps running in background
         BLEController.disconnect()
         MQTTController.disconnect()
     }
