@@ -13,15 +13,13 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.activity.ComponentActivity
-import androidx.core.app.ActivityCompat
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 
 class MainActivity : ComponentActivity() {
 
     private val TAG = "MainActivity"
     private lateinit var webView: WebView
-
-    private val REQUEST_BLE_PERMISSIONS = 101
 
     private val REQUIRED_PERMISSIONS = mutableListOf(
         Manifest.permission.INTERNET,
@@ -33,9 +31,20 @@ class MainActivity : ComponentActivity() {
             add(Manifest.permission.BLUETOOTH_SCAN)
             add(Manifest.permission.BLUETOOTH_CONNECT)
         } else {
-            add(Manifest.permission.ACCESS_FINE_LOCATION) // needed for BLE on older Android
+            add(Manifest.permission.ACCESS_FINE_LOCATION)
         }
     }.toTypedArray()
+
+    // Activity Result API for permissions
+    private val requestPermissionsLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
+            val allGranted = results.values.all { it }
+            if (allGranted) {
+                startSmartHomeService()
+            } else {
+                Toast.makeText(this, "BLE permissions denied. App cannot run properly.", Toast.LENGTH_LONG).show()
+            }
+        }
 
     @SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -64,7 +73,7 @@ class MainActivity : ComponentActivity() {
         if (allPermissionsGranted()) {
             startSmartHomeService()
         } else {
-            ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_BLE_PERMISSIONS)
+            requestPermissionsLauncher.launch(REQUIRED_PERMISSIONS)
         }
 
         // ================= OBSERVE WIDGET STATE =================
@@ -74,7 +83,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** Check if all required permissions are granted */
     private fun allPermissionsGranted(): Boolean =
         REQUIRED_PERMISSIONS.all {
             ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
@@ -129,32 +137,12 @@ class MainActivity : ComponentActivity() {
         fun startBLE() {
             runOnUiThread {
                 Toast.makeText(activity, "Starting BLE scan in background...", Toast.LENGTH_SHORT).show()
-                // The service handles scanning in background
-            }
-        }
-    }
-
-    // ================= PERMISSIONS CALLBACK =================
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-
-        if (requestCode == REQUEST_BLE_PERMISSIONS) {
-            val allGranted = grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }
-            if (allGranted) {
-                startSmartHomeService()
-            } else {
-                Toast.makeText(this, "BLE permissions denied. App cannot run properly.", Toast.LENGTH_LONG).show()
             }
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        // Disconnect UI-level BLE only if needed; service keeps running
         BLEController.disconnect()
         MQTTController.disconnect()
     }
