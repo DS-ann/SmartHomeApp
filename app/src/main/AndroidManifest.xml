@@ -67,8 +67,7 @@
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="connectedDevice|location" />
-            <!-- connectedDevice = BLE, location = if BLE needs scanning permission -->
-
+            
     </application>
 
 </manifest>
