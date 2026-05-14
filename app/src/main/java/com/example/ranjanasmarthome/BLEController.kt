@@ -39,7 +39,7 @@ object BLEController {
             }
 
             override fun onDeviceReady(device: BluetoothDevice) {
-                Log.d(TAG, "Device is ready: ${device.address}")
+                Log.d(TAG, "Device ready: ${device.address}")
             }
 
             override fun onDeviceDisconnecting(device: BluetoothDevice) {
@@ -82,42 +82,40 @@ object BLEController {
      */
     fun onMessageReceived(msg: String) {
         try {
-            // Local state variables
+            // Default values: null = no change
             var light1: Boolean? = null
             var fan1: Int? = null
             var light2: Boolean? = null
             var fan2: Int? = null
 
-            // Parse message format: "a:XY" or "b:XY"
+            // Example message formats:
+            // "a:L1F1" => light1, fan1
+            // "b:L2F2" => light2, fan2
             when {
-                msg.startsWith("a:") -> {
-                    light1 = msg.getOrNull(3) == '1'
-                    fan1 = if (msg.getOrNull(4) == '1') 1 else 0
+                msg.startsWith("a:") && msg.length >= 5 -> {
+                    light1 = msg[2] == '1'
+                    fan1 = msg[3].digitToIntOrNull() ?: 0
                 }
-                msg.startsWith("b:") -> {
-                    light2 = msg.getOrNull(3) == '1'
-                    fan2 = if (msg.getOrNull(4) == '1') 1 else 0
+                msg.startsWith("b:") && msg.length >= 5 -> {
+                    light2 = msg[2] == '1'
+                    fan2 = msg[3].digitToIntOrNull() ?: 0
                 }
             }
 
-            // Update WidgetState with partial values
+            // Update WidgetState partially
             WidgetState.onPartialUpdate(
                 light1 = light1,
-                fan1   = fan1,
+                fan1 = fan1,
                 light2 = light2,
-                fan2   = fan2
+                fan2 = fan2
             )
 
-            // Notify UI callbacks
-            onStateUpdate?.invoke(
-                WidgetState.getState().light1,
-                WidgetState.getState().fan1,
-                WidgetState.getState().light2,
-                WidgetState.getState().fan2
-            )
+            // Notify UI / MainActivity callbacks
+            val state = WidgetState.getState()
+            onStateUpdate?.invoke(state.light1, state.fan1, state.light2, state.fan2)
 
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to decode BLE message: $msg", e)
+            Log.e(TAG, "Failed to parse BLE message: $msg", e)
         }
     }
 }
