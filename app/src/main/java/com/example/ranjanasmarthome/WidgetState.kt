@@ -11,7 +11,8 @@ private const val TAG = "WidgetState"
  */
 object WidgetState {
 
-    /** Callback for UI or widget updates */
+    /** Callback for UI or widget updates (volatile for thread safety) */
+    @Volatile
     var onStateUpdate: ((light1: Boolean, fan1: Int, light2: Boolean, fan2: Int) -> Unit)? = null
 
     // Internal state
@@ -48,7 +49,11 @@ object WidgetState {
     /** Notify UI / widget / MainActivity of current state */
     @Synchronized
     private fun notifyUI() {
-        onStateUpdate?.invoke(light1, fan1, light2, fan2)
+        try {
+            onStateUpdate?.invoke(light1, fan1, light2, fan2)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to notify UI: ${e.message}")
+        }
         Log.d(TAG, "WidgetState updated: L1=$light1 F1=$fan1 L2=$light2 F2=$fan2")
     }
 
