@@ -23,8 +23,8 @@ class SmartHomeWidget : AppWidgetProvider() {
     private val toggleState = mutableMapOf(
         ACTION_LIGHT1 to false,
         ACTION_LIGHT2 to false,
-        ACTION_FAN1 to 0, // fan as Int
-        ACTION_FAN2 to 0  // fan as Int
+        ACTION_FAN1 to 0,
+        ACTION_FAN2 to 0
     )
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
