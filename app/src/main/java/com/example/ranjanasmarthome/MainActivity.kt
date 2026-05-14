@@ -20,6 +20,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var webView: WebView
     private val TAG = "MainActivity"
 
+    // Permissions required
     private val REQUIRED_PERMISSIONS = mutableListOf(
         Manifest.permission.INTERNET,
         Manifest.permission.BLUETOOTH,
@@ -34,11 +35,12 @@ class MainActivity : ComponentActivity() {
         }
     }.toTypedArray()
 
+    // Activity Result Launcher for permissions
     private val requestPermissionsLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
             val allGranted = results.values.all { it }
             if (allGranted) {
-                initApp()
+                startSmartHomeService()
             } else {
                 Toast.makeText(this, "BLE permissions denied. App cannot run.", Toast.LENGTH_LONG).show()
             }
@@ -48,18 +50,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Request permissions first
-        if (allPermissionsGranted()) {
-            initApp()
-        } else {
-            requestPermissionsLauncher.launch(REQUIRED_PERMISSIONS)
-        }
-    }
-
-    /** Initialize WebView + start service safely after permissions granted */
-    @SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
-    private fun initApp() {
-        // WebView setup
+        // ===================== WEBVIEW SETUP =====================
         webView = WebView(this).apply {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
@@ -68,26 +59,42 @@ class MainActivity : ComponentActivity() {
             webViewClient = WebViewClient()
             webChromeClient = WebChromeClient()
             WebView.setWebContentsDebuggingEnabled(true)
-            addJavascriptInterface(AndroidBridge(this@MainActivity), "Android")
+            addJavascriptInterface(AndroidBridge(), "Android")
             loadUrl("file:///android_asset/index.html")
         }
         setContentView(webView)
 
-        // Start foreground service
-        val intent = Intent(this, SmartHomeService::class.java)
-        startForegroundService(intent)
-        Toast.makeText(this, "Smart Home Service started", Toast.LENGTH_SHORT).show()
+        // ===================== PERMISSIONS CHECK =====================
+        if (allPermissionsGranted()) {
+            startSmartHomeService()
+        } else {
+            requestPermissionsLauncher.launch(REQUIRED_PERMISSIONS)
+        }
 
-        // Observe WidgetState
+        // ===================== OBSERVE WIDGETSTATE =====================
         WidgetState.onStateUpdate = { l1, f1, l2, f2 ->
             updateWebView(l1, f1, l2, f2)
         }
     }
 
+    // Check if all required permissions are granted
     private fun allPermissionsGranted(): Boolean =
         REQUIRED_PERMISSIONS.all { ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED }
 
-    /** Update WebView safely */
+    // Start the foreground service safely
+    private fun startSmartHomeService() {
+        try {
+            val intent = Intent(this, SmartHomeService::class.java)
+            startForegroundService(intent)
+            Toast.makeText(this, "Smart Home Service started", Toast.LENGTH_SHORT).show()
+            Log.d(TAG, "Smart Home Service started")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start service", e)
+            Toast.makeText(this, "Failed to start service: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    // Update WebView UI with WidgetState
     private fun updateWebView(light1: Boolean, fan1: Int, light2: Boolean, fan2: Int) {
         runOnUiThread {
             val l1 = if (light1) 1 else 0
@@ -96,8 +103,8 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** JS bridge with reference to Activity for safe UI calls */
-    inner class AndroidBridge(private val activity: MainActivity) {
+    // ===================== JS BRIDGE =====================
+    inner class AndroidBridge {
 
         @android.webkit.JavascriptInterface
         fun sendBLE(cmd: String) {
@@ -109,26 +116,22 @@ class MainActivity : ComponentActivity() {
 
         @android.webkit.JavascriptInterface
         fun startBLE() {
-            // BLE scanning is handled by the Service
+            // Service handles scanning
         }
 
         @android.webkit.JavascriptInterface
         fun disconnectBLE() {
             BLEController.disconnect()
-            activity.runOnUiThread {
-                Toast.makeText(activity, "BLE disconnected", Toast.LENGTH_SHORT).show()
-            }
         }
 
         @android.webkit.JavascriptInterface
         fun connectBLE() {
-            activity.runOnUiThread {
-                Toast.makeText(activity, "Connecting BLE...", Toast.LENGTH_SHORT).show()
-            }
+            // Optional: show toast or just log
+            Log.d(TAG, "JS requested BLE connect")
         }
 
         @android.webkit.JavascriptInterface
-        fun setupBLE() {} // HTML compatibility
+        fun setupBLE() {} // For HTML compatibility
     }
 
     override fun onDestroy() {
