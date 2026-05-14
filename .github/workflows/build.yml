@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build & Publish APKs
 
 on:
   push:
@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ================= Checkout =================
+      # ================= Checkout Repository =================
       - name: Checkout Repository
         uses: actions/checkout@v4
 
@@ -37,3 +37,44 @@ jobs:
         with:
           name: RanjanaSmartHome-APK
           path: app/build/outputs/apk/debug/app-debug.apk
+
+      # ================= Prepare deploy folder =================
+      - name: Prepare deploy folder
+        run: |
+          mkdir -p deploy
+          cp app/build/outputs/apk/debug/app-debug.apk deploy/RanjanaSmartHome-${{ github.run_number }}.apk
+
+      # ================= Keep only last 10 APKs =================
+      - name: Trim old APKs
+        run: |
+          cd deploy
+          ls -tp | grep -v '/$' | tail -n +11 | xargs -I {} rm -- {}
+          cd ..
+
+      # ================= Generate index.html =================
+      - name: Generate index.html
+        run: |
+          cd deploy
+          echo "<!DOCTYPE html>
+<html>
+<head><title>Ranjana Smart Home APKs</title></head>
+<body>
+<h1>Available APKs (newest first)</h1>
+<ul>" > index.html
+
+          for apk in $(ls -t RanjanaSmartHome-*.apk); do
+            size=$(du -h "$apk" | cut -f1)
+            echo "<li><a href=\"$apk\">$apk</a> ($size)</li>" >> index.html
+          done
+
+          echo "</ul>
+</body>
+</html>" >> index.html
+          cd ..
+
+      # ================= Deploy to GitHub Pages =================
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v6
+        with:
+          publish_dir: deploy
+          github_token: ${{ secrets.GITHUB_TOKEN }}
