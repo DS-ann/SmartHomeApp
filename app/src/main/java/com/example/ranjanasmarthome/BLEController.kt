@@ -12,6 +12,9 @@ object BLEController {
     var deviceConnected: Boolean = false
         private set
 
+    // Add proper onStateUpdate callback
+    var onStateUpdate: ((light1: Boolean, fan1: Int, light2: Boolean, fan2: Int) -> Unit)? = null
+
     fun init(manager: SmartHomeBleManager) {
         bleManager = manager
 
@@ -60,28 +63,34 @@ object BLEController {
         }
     }
 
-  fun onMessageReceived(msg: String) {
-    try {
-        when {
-            msg.startsWith("a:") -> {
-                val light1 = msg.getOrNull(3) == '1'
-                val fan1 = if (msg.getOrNull(4) == '1') 1 else 0
-                WidgetState.onPartialUpdate(
-                    light1 = light1,
-                    fan1 = fan1
-                )
+    fun onMessageReceived(msg: String) {
+        try {
+            var light1 = false
+            var fan1 = 0
+            var light2 = false
+            var fan2 = 0
+
+            when {
+                msg.startsWith("a:") -> {
+                    light1 = msg.getOrNull(3) == '1'
+                    fan1 = if (msg.getOrNull(4) == '1') 1 else 0
+                }
+                msg.startsWith("b:") -> {
+                    light2 = msg.getOrNull(3) == '1'
+                    fan2 = if (msg.getOrNull(4) == '1') 1 else 0
+                }
             }
-            msg.startsWith("b:") -> {
-                val light2 = msg.getOrNull(3) == '1'
-                val fan2 = if (msg.getOrNull(4) == '1') 1 else 0
-                WidgetState.onPartialUpdate(
-                    light2 = light2,
-                    fan2 = fan2
-                )
-            }
+
+            // Update widget and notify subscribers
+            WidgetState.onPartialUpdate(light1 = if (msg.startsWith("a:")) light1 else null,
+                                        fan1   = if (msg.startsWith("a:")) fan1 else null,
+                                        light2 = if (msg.startsWith("b:")) light2 else null,
+                                        fan2   = if (msg.startsWith("b:")) fan2 else null)
+
+            onStateUpdate?.invoke(light1, fan1, light2, fan2)
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to decode BLE message: $msg", e)
         }
-    } catch (e: Exception) {
-        Log.e(TAG, "Failed to decode BLE message: $msg", e)
     }
-}
 }
