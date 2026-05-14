@@ -12,7 +12,7 @@ private const val TAG = "SmartHomeBleMgr"
 
 class SmartHomeBleManager(context: Context) : BleManager(context) {
 
-    // Nordic UART Service UUID
+    // Nordic UART Service UUIDs
     private val uartServiceUuid = UUID.fromString("6e400001-b5a3-f393-e0a9-e50e24dcca9e")
     private val txCharacteristicUuid = UUID.fromString("6e400003-b5a3-f393-e0a9-e50e24dcca9e")
     private val rxCharacteristicUuid = UUID.fromString("6e400002-b5a3-f393-e0a9-e50e24dcca9e")
@@ -34,8 +34,10 @@ class SmartHomeBleManager(context: Context) : BleManager(context) {
 
         override fun initialize() {
             txCharacteristic?.let { characteristic ->
-                // Set up notifications for incoming data
-                setNotificationCallback(characteristic).with { _, data -> onDataReceived(data) }
+                // Enable notifications for TX characteristic (device → phone)
+                setNotificationCallback(characteristic).with { _, data ->
+                    onDataReceived(data)
+                }
                 enableNotifications(characteristic).enqueue()
             }
         }
@@ -44,6 +46,13 @@ class SmartHomeBleManager(context: Context) : BleManager(context) {
             txCharacteristic = null
             rxCharacteristic = null
             Log.d(TAG, "BLE device disconnected")
+        }
+
+        // **Required abstract method**
+        override fun onServicesInvalidated() {
+            txCharacteristic = null
+            rxCharacteristic = null
+            Log.d(TAG, "BLE services invalidated")
         }
     }
 
