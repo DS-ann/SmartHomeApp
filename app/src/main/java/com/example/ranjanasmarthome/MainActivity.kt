@@ -2,7 +2,7 @@ package com.example.ranjanasmarthome
 
 import android.annotation.SuppressLint
 import android.app.Activity
-import android.bluetooth.BluetoothManager
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.webkit.WebChromeClient
@@ -16,7 +16,6 @@ class MainActivity : ComponentActivity() {
     private val TAG = "MainActivity"
 
     private lateinit var webView: WebView
-    private lateinit var bleManager: SmartHomeBleManager
 
     @SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -41,26 +40,18 @@ class MainActivity : ComponentActivity() {
         }
         setContentView(webView)
 
-        // ================= BLE SETUP =================
-        bleManager = SmartHomeBleManager(this)
-        BLEController.init(bleManager)
+        // ================= START FOREGROUND SERVICE =================
+        val serviceIntent = Intent(this, SmartHomeService::class.java)
+        startForegroundService(serviceIntent)
 
-        BLEController.onStateUpdate = { l1, f1, l2, f2 ->
-            Log.d(TAG, "BLE update: L1=$l1 F1=$f1 L2=$l2 F2=$f2")
-            WidgetState.update(l1, f1, l2, f2)
-            updateWebView(l1, f1, l2, f2)
-        }
-
-        // ================= MQTT SETUP =================
-        MQTTController.init(applicationContext)
-        MQTTController.onStateUpdate = { l1, f1, l2, f2 ->
-            Log.d(TAG, "MQTT update: L1=$l1 F1=$f1 L2=$l2 F2=$f2")
-            WidgetState.update(l1, f1, l2, f2)
+        // ================= OBSERVE STATE =================
+        WidgetState.onStateUpdate = { l1, f1, l2, f2 ->
+            Log.d(TAG, "WidgetState update: L1=$l1 F1=$f1 L2=$l2 F2=$f2")
             updateWebView(l1, f1, l2, f2)
         }
     }
 
-    /** Update the WebView UI with current device state */
+    /** Update WebView UI safely */
     private fun updateWebView(light1: Boolean, fan1: Int, light2: Boolean, fan2: Int) {
         runOnUiThread {
             val l1 = if (light1) 1 else 0
@@ -73,18 +64,21 @@ class MainActivity : ComponentActivity() {
     inner class AndroidBridge(private val activity: Activity) {
 
         @android.webkit.JavascriptInterface
-        fun startBLE() {
-            runOnUiThread {
-                Toast.makeText(activity, "Starting BLE scan...", Toast.LENGTH_SHORT).show()
-                scanAndConnectBLE()
-            }
-        }
-
-        @android.webkit.JavascriptInterface
         fun sendBLE(cmd: String) {
             if (cmd.isNotBlank()) {
                 BLEController.sendCommand(cmd)
                 MQTTController.sendCommand(cmd)
+            }
+        }
+
+        @android.webkit.JavascriptInterface
+        fun setupBLE() {} // For HTML compatibility
+
+        @android.webkit.JavascriptInterface
+        fun disconnectBLE() {
+            BLEController.disconnect()
+            runOnUiThread {
+                Toast.makeText(activity, "BLE disconnected", Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -96,60 +90,17 @@ class MainActivity : ComponentActivity() {
         }
 
         @android.webkit.JavascriptInterface
-        fun disconnectBLE() {
-            BLEController.disconnect()
+        fun startBLE() {
             runOnUiThread {
-                Toast.makeText(activity, "BLE disconnected", Toast.LENGTH_SHORT).show()
+                Toast.makeText(activity, "Starting BLE scan...", Toast.LENGTH_SHORT).show()
+                // The service handles scanning in background, no direct scan here
             }
         }
-
-        @android.webkit.JavascriptInterface
-        fun setupBLE() {} // For HTML compatibility
     }
 
-    // ================= BLE SCAN & CONNECT =================
-    private fun scanAndConnectBLE() {
-        val bluetoothManager = getSystemService(BLUETOOTH_SERVICE) as BluetoothManager
-        val adapter = bluetoothManager.adapter
-        if (adapter == null || !adapter.isEnabled) {
-            Toast.makeText(this, "Bluetooth not available", Toast.LENGTH_LONG).show()
-            return
-        }
-
-        val scanner = adapter.bluetoothLeScanner
-        if (scanner == null) {
-            Toast.makeText(this, "BLE scanner not available", Toast.LENGTH_LONG).show()
-            return
-        }
-
-        val scanCallback = object : android.bluetooth.le.ScanCallback() {
-            override fun onScanResult(callbackType: Int, result: android.bluetooth.le.ScanResult?) {
-                val device = result?.device ?: return
-                val name = device.name ?: return
-                if (name.startsWith("RanjanaSmartHome")) {
-                    scanner.stopScan(this)
-                    BLEController.connect(device)
-                    runOnUiThread {
-                        Toast.makeText(this@MainActivity, "BLE Device Found: $name", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-
-            override fun onScanFailed(errorCode: Int) {
-                Log.e(TAG, "BLE scan failed: $errorCode")
-            }
-        }
-
-        val settings = android.bluetooth.le.ScanSettings.Builder()
-            .setScanMode(android.bluetooth.le.ScanSettings.SCAN_MODE_LOW_LATENCY)
-            .build()
-
-        scanner.startScan(null, settings, scanCallback)
-    }
-
-    // ================= CLEANUP =================
     override fun onDestroy() {
         super.onDestroy()
+        // Disconnect UI-level BLE only if needed; service keeps running
         BLEController.disconnect()
         MQTTController.disconnect()
     }
