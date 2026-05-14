@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.ranjanasmarthome">
 
     <!-- INTERNET -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -12,19 +13,18 @@
     <uses-permission
         android:name="android.permission.BLUETOOTH_SCAN"
         android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
-    <uses-permission
-        android:name="android.permission.BLUETOOTH_CONNECT" />
+    <!-- BLE scanning (for older Androids) -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
-    <!-- BLE scanning -->
-    <uses-permission
-        android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- Foreground service permission -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 
     <!-- Features -->
     <uses-feature
         android:name="android.hardware.bluetooth"
         android:required="true" />
-
     <uses-feature
         android:name="android.hardware.bluetooth_le"
         android:required="true" />
@@ -38,6 +38,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.RanjanaSmartHome">
 
+        <!-- Main activity -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -54,16 +55,19 @@
                 uiMode">
 
             <intent-filter>
-
-                <action
-                    android:name="android.intent.action.MAIN" />
-
-                <category
-                    android:name="android.intent.category.LAUNCHER" />
-
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
         </activity>
+
+        <!-- Foreground service for background BLE/MQTT -->
+        <service
+            android:name=".SmartHomeService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice|location" />
+            <!-- connectedDevice = BLE, location = if BLE needs scanning permission -->
 
     </application>
 
