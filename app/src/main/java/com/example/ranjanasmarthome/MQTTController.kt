@@ -7,6 +7,10 @@ import org.eclipse.paho.client.mqttv3.*
 
 private const val TAG = "MQTTController"
 
+/**
+ * Central MQTT controller for Smart Home device.
+ * Handles connection, publishing commands, and receiving updates.
+ */
 object MQTTController {
 
     private const val SERVER_URI = "ssl://5dba91287f8248c1a30195053d3862ed.s1.eu.hivemq.cloud:8883"
@@ -21,14 +25,14 @@ object MQTTController {
     var isConnected: Boolean = false
         private set
 
-    // Callback for UI updates: Booleans for lights and fans
-    var onStateUpdate: ((light1: Boolean, fan1: Boolean, light2: Boolean, fan2: Boolean) -> Unit)? = null
+    // Callback for UI updates: light1, fan1 (Int), light2, fan2 (Int)
+    var onStateUpdate: ((light1: Boolean, fan1: Int, light2: Boolean, fan2: Int) -> Unit)? = null
 
     // Local device state
     private var light1State: Boolean = false
-    private var fan1State: Boolean = false
+    private var fan1State: Int = 0
     private var light2State: Boolean = false
-    private var fan2State: Boolean = false
+    private var fan2State: Int = 0
 
     /** Initialize MQTT client */
     fun init(context: Context) {
@@ -78,7 +82,7 @@ object MQTTController {
         }
     }
 
-    /** Subscribe to the ESP32 update topic */
+    /** Subscribe to device state updates */
     private fun subscribeToUpdates() {
         try {
             client.subscribe(TOPIC_UPDATE, 0) { _, message ->
@@ -102,21 +106,29 @@ object MQTTController {
         }
     }
 
-    /** Decode incoming MQTT messages and notify listeners */
+    /** Decode incoming MQTT messages and update WidgetState */
     private fun decodeMessage(msg: String) {
         try {
             when {
-                msg.startsWith("a:") -> {
-                    light1State = msg.getOrNull(3) == '1'
-                    fan1State = msg.getOrNull(4) == '1'
+                msg.startsWith("a:") && msg.length >= 5 -> {
+                    light1State = msg[2] == '1'
+                    fan1State = msg[3].digitToIntOrNull() ?: 0
                 }
-                msg.startsWith("b:") -> {
-                    light2State = msg.getOrNull(3) == '1'
-                    fan2State = msg.getOrNull(4) == '1'
+                msg.startsWith("b:") && msg.length >= 5 -> {
+                    light2State = msg[2] == '1'
+                    fan2State = msg[3].digitToIntOrNull() ?: 0
                 }
             }
 
-            // Notify UI listeners with Boolean states
+            // Update WidgetState
+            WidgetState.onPartialUpdate(
+                light1 = light1State,
+                fan1 = fan1State,
+                light2 = light2State,
+                fan2 = fan2State
+            )
+
+            // Notify UI callbacks
             onStateUpdate?.invoke(light1State, fan1State, light2State, fan2State)
 
         } catch (e: Exception) {
