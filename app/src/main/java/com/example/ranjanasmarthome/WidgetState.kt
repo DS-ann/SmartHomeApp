@@ -4,9 +4,14 @@ import android.util.Log
 
 private const val TAG = "WidgetState"
 
+/**
+ * Central state manager for Smart Home devices.
+ * Tracks lights (Boolean) and fans (0–100 Int) states.
+ * Supports full and partial updates.
+ */
 object WidgetState {
 
-    // Callback for UI updates
+    /** Callback for UI or widget updates */
     var onStateUpdate: ((light1: Boolean, fan1: Int, light2: Boolean, fan2: Int) -> Unit)? = null
 
     // Internal state
@@ -15,7 +20,7 @@ object WidgetState {
     private var light2: Boolean = false
     private var fan2: Int = 0
 
-    /** Update the full state at once */
+    /** Update all values at once */
     @Synchronized
     fun update(light1: Boolean, fan1: Int, light2: Boolean, fan2: Int) {
         this.light1 = light1
@@ -25,7 +30,7 @@ object WidgetState {
         notifyUI()
     }
 
-    /** Partial update: only the fields that are not null will change */
+    /** Partial update: only non-null values are changed */
     @Synchronized
     fun onPartialUpdate(
         light1: Boolean? = null,
@@ -40,18 +45,18 @@ object WidgetState {
         notifyUI()
     }
 
-    /** Notify the UI or any listener about current state */
+    /** Notify UI / widget / MainActivity of current state */
     @Synchronized
     private fun notifyUI() {
         onStateUpdate?.invoke(light1, fan1, light2, fan2)
         Log.d(TAG, "WidgetState updated: L1=$light1 F1=$fan1 L2=$light2 F2=$fan2")
     }
 
-    /** Get a snapshot of the current state */
+    /** Return a snapshot of current state */
     @Synchronized
     fun getState(): StateData = StateData(light1, fan1, light2, fan2)
 
-    /** Immutable data class for current state */
+    /** Immutable data class for snapshot */
     data class StateData(
         val light1: Boolean,
         val fan1: Int,
