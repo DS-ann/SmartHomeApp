@@ -6,8 +6,8 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.widget.RemoteViews
 import android.util.Log
+import android.widget.RemoteViews
 
 private const val TAG = "SmartHomeWidget"
 
@@ -20,9 +20,10 @@ class SmartHomeWidget : AppWidgetProvider() {
         const val ACTION_FAN2 = "ACTION_FAN2"
     }
 
+    // All states stored as Int (0 = off, 1 = on)
     private val toggleState = mutableMapOf(
-        ACTION_LIGHT1 to false,
-        ACTION_LIGHT2 to false,
+        ACTION_LIGHT1 to 0,
+        ACTION_LIGHT2 to 0,
         ACTION_FAN1 to 0,
         ACTION_FAN2 to 0
     )
@@ -59,33 +60,29 @@ class SmartHomeWidget : AppWidgetProvider() {
 
         when (action) {
             ACTION_LIGHT1 -> toggleRelay(context, 0, ACTION_LIGHT1)
-            ACTION_FAN1   -> toggleRelay(context, 1, ACTION_FAN1)
+            ACTION_FAN1 -> toggleRelay(context, 1, ACTION_FAN1)
             ACTION_LIGHT2 -> toggleRelay(context, 4, ACTION_LIGHT2)
-            ACTION_FAN2   -> toggleRelay(context, 5, ACTION_FAN2)
+            ACTION_FAN2 -> toggleRelay(context, 5, ACTION_FAN2)
         }
     }
 
     private fun toggleRelay(context: Context, relayIndex: Int, actionKey: String) {
-        val current = toggleState[actionKey]
-        val newState = when (current) {
-            is Boolean -> !current
-            is Int -> if (current == 0) 1 else 0
-            else -> 0
-        }
+        val current = toggleState[actionKey] ?: 0
+        val newState = if (current == 0) 1 else 0
         toggleState[actionKey] = newState
 
-        val cmd = "$relayIndex${if (newState != 0) 1 else 0}"
+        val cmd = "$relayIndex$newState"
 
         BLEController.sendCommand(cmd)
         MQTTController.sendCommand(cmd)
 
-        val currentState = getCurrentWidgetState()
+        val state = getCurrentWidgetState()
         updateWidgetUI(
             context,
-            currentState.light1,
-            currentState.fan1,
-            currentState.light2,
-            currentState.fan2
+            state.light1,
+            state.fan1,
+            state.light2,
+            state.fan2
         )
     }
 
@@ -117,10 +114,10 @@ class SmartHomeWidget : AppWidgetProvider() {
 
     private fun getCurrentWidgetState(): WidgetStateData {
         return WidgetStateData(
-            light1 = toggleState[ACTION_LIGHT1] as? Boolean ?: false,
-            fan1   = toggleState[ACTION_FAN1] as? Int ?: 0,
-            light2 = toggleState[ACTION_LIGHT2] as? Boolean ?: false,
-            fan2   = toggleState[ACTION_FAN2] as? Int ?: 0
+            light1 = (toggleState[ACTION_LIGHT1] ?: 0) == 1,
+            fan1 = toggleState[ACTION_FAN1] ?: 0,
+            light2 = (toggleState[ACTION_LIGHT2] ?: 0) == 1,
+            fan2 = toggleState[ACTION_FAN2] ?: 0
         )
     }
 
