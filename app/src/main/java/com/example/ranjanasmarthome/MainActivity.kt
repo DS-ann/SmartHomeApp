@@ -38,7 +38,7 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
             val allGranted = results.values.all { it }
             if (allGranted) {
-                startSmartHomeService()
+                initApp()
             } else {
                 Toast.makeText(this, "BLE permissions denied. App cannot run.", Toast.LENGTH_LONG).show()
             }
@@ -48,6 +48,17 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Request permissions first
+        if (allPermissionsGranted()) {
+            initApp()
+        } else {
+            requestPermissionsLauncher.launch(REQUIRED_PERMISSIONS)
+        }
+    }
+
+    /** Initialize WebView + start service safely after permissions granted */
+    @SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
+    private fun initApp() {
         // WebView setup
         webView = WebView(this).apply {
             settings.javaScriptEnabled = true
@@ -57,19 +68,17 @@ class MainActivity : ComponentActivity() {
             webViewClient = WebViewClient()
             webChromeClient = WebChromeClient()
             WebView.setWebContentsDebuggingEnabled(true)
-            addJavascriptInterface(AndroidBridge(), "Android")
+            addJavascriptInterface(AndroidBridge(this@MainActivity), "Android")
             loadUrl("file:///android_asset/index.html")
         }
         setContentView(webView)
 
-        // Request permissions
-        if (allPermissionsGranted()) {
-            startSmartHomeService()
-        } else {
-            requestPermissionsLauncher.launch(REQUIRED_PERMISSIONS)
-        }
+        // Start foreground service
+        val intent = Intent(this, SmartHomeService::class.java)
+        startForegroundService(intent)
+        Toast.makeText(this, "Smart Home Service started", Toast.LENGTH_SHORT).show()
 
-        // Observe WidgetState to update WebView
+        // Observe WidgetState
         WidgetState.onStateUpdate = { l1, f1, l2, f2 ->
             updateWebView(l1, f1, l2, f2)
         }
@@ -78,12 +87,7 @@ class MainActivity : ComponentActivity() {
     private fun allPermissionsGranted(): Boolean =
         REQUIRED_PERMISSIONS.all { ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED }
 
-    private fun startSmartHomeService() {
-        val intent = Intent(this, SmartHomeService::class.java)
-        startForegroundService(intent)
-        Toast.makeText(this, "Smart Home Service started", Toast.LENGTH_SHORT).show()
-    }
-
+    /** Update WebView safely */
     private fun updateWebView(light1: Boolean, fan1: Int, light2: Boolean, fan2: Int) {
         runOnUiThread {
             val l1 = if (light1) 1 else 0
@@ -92,7 +96,8 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    inner class AndroidBridge {
+    /** JS bridge with reference to Activity for safe UI calls */
+    inner class AndroidBridge(private val activity: MainActivity) {
 
         @android.webkit.JavascriptInterface
         fun sendBLE(cmd: String) {
@@ -104,21 +109,26 @@ class MainActivity : ComponentActivity() {
 
         @android.webkit.JavascriptInterface
         fun startBLE() {
-            // Service already handles scanning
+            // BLE scanning is handled by the Service
         }
 
         @android.webkit.JavascriptInterface
         fun disconnectBLE() {
             BLEController.disconnect()
+            activity.runOnUiThread {
+                Toast.makeText(activity, "BLE disconnected", Toast.LENGTH_SHORT).show()
+            }
         }
 
         @android.webkit.JavascriptInterface
         fun connectBLE() {
-            // Optional toast
+            activity.runOnUiThread {
+                Toast.makeText(activity, "Connecting BLE...", Toast.LENGTH_SHORT).show()
+            }
         }
 
         @android.webkit.JavascriptInterface
-        fun setupBLE() {} // For compatibility
+        fun setupBLE() {} // HTML compatibility
     }
 
     override fun onDestroy() {
