@@ -60,30 +60,28 @@ object BLEController {
         }
     }
 
-    fun onMessageReceived(msg: String) {
-        try {
-            when {
-                msg.startsWith("a:") -> {
-                    val light1 = msg.getOrNull(3) == '1'
-                    val fan1 = msg.getOrNull(4) == '1'
-                    // Only update light1 and fan1
-                    WidgetState.onPartialUpdate(
-                        light1 = light1,
-                        fan1 = fan1
-                    )
-                }
-                msg.startsWith("b:") -> {
-                    val light2 = msg.getOrNull(3) == '1'
-                    val fan2 = msg.getOrNull(4) == '1'
-                    // Only update light2 and fan2
-                    WidgetState.onPartialUpdate(
-                        light2 = light2,
-                        fan2 = fan2
-                    )
-                }
+  fun onMessageReceived(msg: String) {
+    try {
+        when {
+            msg.startsWith("a:") -> {
+                val light1 = msg.getOrNull(3) == '1'
+                val fan1 = if (msg.getOrNull(4) == '1') 1 else 0
+                WidgetState.onPartialUpdate(
+                    light1 = light1,
+                    fan1 = fan1
+                )
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to decode BLE message: $msg", e)
+            msg.startsWith("b:") -> {
+                val light2 = msg.getOrNull(3) == '1'
+                val fan2 = if (msg.getOrNull(4) == '1') 1 else 0
+                WidgetState.onPartialUpdate(
+                    light2 = light2,
+                    fan2 = fan2
+                )
+            }
         }
+    } catch (e: Exception) {
+        Log.e(TAG, "Failed to decode BLE message: $msg", e)
     }
+}
 }
