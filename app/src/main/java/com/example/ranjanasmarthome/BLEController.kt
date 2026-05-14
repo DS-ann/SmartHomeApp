@@ -6,21 +6,25 @@ import no.nordicsemi.android.ble.observer.ConnectionObserver
 
 private const val TAG = "BLEController"
 
+/**
+ * Central BLE controller for Smart Home device.
+ * Handles connection, command sending, and incoming messages.
+ */
 object BLEController {
 
     private var bleManager: SmartHomeBleManager? = null
+
+    /** Current device connection state */
     var deviceConnected: Boolean = false
         private set
 
-    // Callback for UI updates
-    var onStateUpdate: ((light1: Boolean, fan1: Boolean, light2: Boolean, fan2: Boolean) -> Unit)? = null
+    /**
+     * Callback for UI updates or widget updates.
+     * Emits: light1 (Boolean), fan1 (Int), light2 (Boolean), fan2 (Int)
+     */
+    var onStateUpdate: ((light1: Boolean, fan1: Int, light2: Boolean, fan2: Int) -> Unit)? = null
 
-    // Current device state
-    private var light1State: Boolean = false
-    private var fan1State: Boolean = false
-    private var light2State: Boolean = false
-    private var fan2State: Boolean = false
-
+    /** Initialize BLE controller with SmartHomeBleManager */
     fun init(manager: SmartHomeBleManager) {
         bleManager = manager
 
@@ -53,14 +57,17 @@ object BLEController {
         })
     }
 
+    /** Connect to a BLE device */
     fun connect(device: BluetoothDevice) {
         bleManager?.connect(device)?.enqueue()
     }
 
+    /** Disconnect from BLE device */
     fun disconnect() {
         bleManager?.disconnect()?.enqueue()
     }
 
+    /** Send a command string to BLE device */
     fun sendCommand(cmd: String) {
         if (deviceConnected) {
             bleManager?.sendCommand(cmd)
@@ -69,29 +76,45 @@ object BLEController {
         }
     }
 
+    /**
+     * Called by BLE manager when a message is received.
+     * Parses and updates WidgetState.
+     */
     fun onMessageReceived(msg: String) {
         try {
+            // Local state variables
+            var light1: Boolean? = null
+            var fan1: Int? = null
+            var light2: Boolean? = null
+            var fan2: Int? = null
+
+            // Parse message format: "a:XY" or "b:XY"
             when {
                 msg.startsWith("a:") -> {
-                    light1State = msg.getOrNull(3) == '1'
-                    fan1State   = msg.getOrNull(4) == '1'
+                    light1 = msg.getOrNull(3) == '1'
+                    fan1 = if (msg.getOrNull(4) == '1') 1 else 0
                 }
                 msg.startsWith("b:") -> {
-                    light2State = msg.getOrNull(3) == '1'
-                    fan2State   = msg.getOrNull(4) == '1'
+                    light2 = msg.getOrNull(3) == '1'
+                    fan2 = if (msg.getOrNull(4) == '1') 1 else 0
                 }
             }
 
-            // Update widget state safely (nullable partial update)
+            // Update WidgetState with partial values
             WidgetState.onPartialUpdate(
-                light1 = if (msg.startsWith("a:")) light1State else null,
-                fan1   = if (msg.startsWith("a:")) fan1State else null,
-                light2 = if (msg.startsWith("b:")) light2State else null,
-                fan2   = if (msg.startsWith("b:")) fan2State else null
+                light1 = light1,
+                fan1   = fan1,
+                light2 = light2,
+                fan2   = fan2
             )
 
-            // Notify listeners
-            onStateUpdate?.invoke(light1State, fan1State, light2State, fan2State)
+            // Notify UI callbacks
+            onStateUpdate?.invoke(
+                WidgetState.getState().light1,
+                WidgetState.getState().fan1,
+                WidgetState.getState().light2,
+                WidgetState.getState().fan2
+            )
 
         } catch (e: Exception) {
             Log.e(TAG, "Failed to decode BLE message: $msg", e)
