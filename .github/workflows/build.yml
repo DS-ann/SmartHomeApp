@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build & Artifact Android APK
 
 on:
   push:
@@ -27,50 +27,41 @@ jobs:
       - name: Make Gradlew Executable
         run: chmod +x gradlew
 
-      # ================= Build Debug APK =================
+      # ================= Build APK =================
       - name: Build Debug APK
         run: ./gradlew assembleDebug --parallel --daemon
 
-      # ================= Upload APK Artifact =================
-      - name: Upload APK as Artifact
+      # ================= Prepare Deploy Folder =================
+      - name: Prepare deploy folder
+        run: |
+          mkdir -p deploy
+          cp app/build/outputs/apk/debug/*.apk deploy/
+
+      # ================= Generate index.html =================
+      - name: Generate index.html for APK downloads
+        run: |
+          cd deploy
+          echo "<!DOCTYPE html>" > index.html
+          echo "<html>" >> index.html
+          echo "<head><title>Ranjana Smart Home APKs</title></head>" >> index.html
+          echo "<body>" >> index.html
+          echo "<h1>Available APKs (newest first)</h1>" >> index.html
+          echo "<ul>" >> index.html
+
+          # List APKs newest first
+          for apk in $(ls -t *.apk); do
+            size=$(du -h "$apk" | cut -f1)
+            echo "<li><a href=\"$apk\">$apk</a> ($size)</li>" >> index.html
+          done
+
+          echo "</ul>" >> index.html
+          echo "</body>" >> index.html
+          echo "</html>" >> index.html
+          cd ..
+
+      # ================= Upload Artifacts =================
+      - name: Upload APKs & index.html as artifact
         uses: actions/upload-artifact@v4
         with:
           name: RanjanaSmartHome-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
-
-      # ================= Generate index.html =================
-     - name: Generate index.html for APK downloads
-  run: |
-    mkdir -p deploy
-    cd deploy
-
-    cat << 'EOF' > index.html
-<!DOCTYPE html>
-<html>
-<head><title>Ranjana Smart Home APKs</title></head>
-<body>
-<h1>Available APKs (newest first)</h1>
-<ul>
-EOF
-
-    # Copy APKs and add links
-    for apk in $(ls -t ../app/build/outputs/apk/debug/*.apk); do
-      size=$(du -h "$apk" | cut -f1)
-      base=$(basename "$apk")
-      cp "$apk" .
-      echo "<li><a href=\"$base\">$base</a> ($size)</li>" >> index.html
-    done
-
-    cat << 'EOF' >> index.html
-</ul>
-</body>
-</html>
-EOF
-
-    cd ..
-      # ================= Upload deploy folder as artifact =================
-      - name: Upload deploy folder as Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: RanjanaSmartHome-deploy
           path: deploy/
