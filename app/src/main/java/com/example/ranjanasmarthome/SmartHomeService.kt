@@ -9,8 +9,6 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
 import androidx.core.app.NotificationCompat
 
@@ -21,14 +19,13 @@ private const val NOTIFICATION_ID = 101
 class SmartHomeService : Service() {
 
     private lateinit var bleManager: SmartHomeBleManager
-    private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun onCreate() {
         super.onCreate()
         Log.d(TAG, "Service created")
 
         createNotificationChannel()
-        startForeground(NOTIFICATION_ID, buildNotification("Service starting..."))
+        startForeground(NOTIFICATION_ID, buildNotification("Smart Home Service running"))
 
         // ================= BLE SETUP =================
         bleManager = SmartHomeBleManager(this)
@@ -47,75 +44,73 @@ class SmartHomeService : Service() {
         }
 
         // ================= START BLE SCAN =================
-        mainHandler.post { startBleScan() }
+        startBleScan()
     }
 
     private fun startBleScan() {
-        try {
-            val bluetoothManager = getSystemService(BLUETOOTH_SERVICE) as BluetoothManager
-            val adapter = bluetoothManager.adapter
-            if (adapter == null || !adapter.isEnabled) {
-                Log.w(TAG, "Bluetooth not available or disabled")
-                return
-            }
+        val bluetoothManager = getSystemService(BLUETOOTH_SERVICE) as BluetoothManager
+        val adapter = bluetoothManager.adapter
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                if (checkSelfPermission(android.Manifest.permission.BLUETOOTH_SCAN) !=
-                    android.content.pm.PackageManager.PERMISSION_GRANTED
-                ) {
-                    Log.w(TAG, "BLUETOOTH_SCAN permission missing")
-                    return
-                }
-            }
-
-            val scanner = adapter.bluetoothLeScanner ?: run {
-                Log.w(TAG, "BLE scanner not available")
-                return
-            }
-
-            val scanCallback = object : android.bluetooth.le.ScanCallback() {
-                override fun onScanResult(callbackType: Int, result: android.bluetooth.le.ScanResult?) {
-                    try {
-                        val device = result?.device ?: return
-                        val name = device.name ?: return
-                        if (name.startsWith("RanjanaSmartHome")) {
-                            scanner.stopScan(this)
-                            BLEController.connect(device)
-                            mainHandler.post {
-                                Log.d(TAG, "BLE Device Found: $name")
-                            }
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "BLE scan callback error: ${e.message}")
-                    }
-                }
-
-                override fun onScanFailed(errorCode: Int) {
-                    Log.e(TAG, "BLE scan failed: $errorCode")
-                }
-            }
-
-            val settings = android.bluetooth.le.ScanSettings.Builder()
-                .setScanMode(android.bluetooth.le.ScanSettings.SCAN_MODE_LOW_LATENCY)
-                .build()
-
-            scanner.startScan(null, settings, scanCallback)
-            Log.d(TAG, "BLE scan started in foreground service")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to start BLE scan: ${e.message}", e)
+        if (adapter == null || !adapter.isEnabled) {
+            Log.e(TAG, "Bluetooth not available or disabled")
+            return
         }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (!checkSelfPermission(android.Manifest.permission.BLUETOOTH_SCAN)
+                .equals(android.content.pm.PackageManager.PERMISSION_GRANTED)
+            ) {
+                Log.e(TAG, "BLUETOOTH_SCAN permission not granted")
+                return
+            }
+            if (!checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT)
+                .equals(android.content.pm.PackageManager.PERMISSION_GRANTED)
+            ) {
+                Log.e(TAG, "BLUETOOTH_CONNECT permission not granted")
+                return
+            }
+        }
+
+        val scanner = adapter.bluetoothLeScanner
+        if (scanner == null) {
+            Log.e(TAG, "BLE scanner not available")
+            return
+        }
+
+        val scanCallback = object : android.bluetooth.le.ScanCallback() {
+            override fun onScanResult(callbackType: Int, result: android.bluetooth.le.ScanResult?) {
+                val device = result?.device ?: return
+                val name = device.name ?: return
+
+                if (name.startsWith("RanjanaSmartHome")) {
+                    scanner.stopScan(this)
+                    BLEController.connect(device)
+                    Log.d(TAG, "BLE Device Found: $name")
+                }
+            }
+
+            override fun onScanFailed(errorCode: Int) {
+                Log.e(TAG, "BLE scan failed: $errorCode")
+            }
+        }
+
+        val settings = android.bluetooth.le.ScanSettings.Builder()
+            .setScanMode(android.bluetooth.le.ScanSettings.SCAN_MODE_LOW_LATENCY)
+            .build()
+
+        scanner.startScan(null, settings, scanCallback)
+        Log.d(TAG, "BLE scan started in foreground service")
     }
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Smart Home Background Service",
+                "Smart Home Service",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
                 description = "Keeps Smart Home BLE and MQTT running in background"
             }
-
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
         }
@@ -125,7 +120,7 @@ class SmartHomeService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Ranjana Smart Home")
             .setContentText(content)
-            .setSmallIcon(R.mipmap.ic_launcher) // your launcher icon
+            .setSmallIcon(R.mipmap.ic_launcher)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)
             .build()
