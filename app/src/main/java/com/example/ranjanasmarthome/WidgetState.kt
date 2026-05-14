@@ -1,5 +1,9 @@
 package com.example.ranjanasmarthome
 
+import android.util.Log
+
+private const val TAG = "WidgetState"
+
 object WidgetState {
 
     // Callback for UI updates
@@ -12,15 +16,17 @@ object WidgetState {
     private var fan2: Int = 0
 
     /** Update the full state at once */
+    @Synchronized
     fun update(light1: Boolean, fan1: Int, light2: Boolean, fan2: Int) {
         this.light1 = light1
-        this.fan1 = fan1.coerceIn(0..100) // Optional: clamp fan speed
+        this.fan1 = fan1.coerceIn(0..100)
         this.light2 = light2
         this.fan2 = fan2.coerceIn(0..100)
         notifyUI()
     }
 
     /** Partial update: only the fields that are not null will change */
+    @Synchronized
     fun onPartialUpdate(
         light1: Boolean? = null,
         fan1: Int? = null,
@@ -35,11 +41,14 @@ object WidgetState {
     }
 
     /** Notify the UI or any listener about current state */
+    @Synchronized
     private fun notifyUI() {
         onStateUpdate?.invoke(light1, fan1, light2, fan2)
+        Log.d(TAG, "WidgetState updated: L1=$light1 F1=$fan1 L2=$light2 F2=$fan2")
     }
 
     /** Get a snapshot of the current state */
+    @Synchronized
     fun getState(): StateData = StateData(light1, fan1, light2, fan2)
 
     /** Immutable data class for current state */
