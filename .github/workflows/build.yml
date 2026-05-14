@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-
   workflow_dispatch:
 
 jobs:
@@ -30,7 +29,6 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-          cache: gradle
 
       # ==========================================
       # Gradle Permission
@@ -44,7 +42,7 @@ jobs:
       # ==========================================
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --build-cache --parallel --daemon
+        run: ./gradlew assembleDebug --parallel --daemon
 
       # ==========================================
       # Upload APK
