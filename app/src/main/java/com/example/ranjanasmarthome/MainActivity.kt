@@ -15,7 +15,6 @@ class MainActivity : ComponentActivity() {
     private val TAG = "MainActivity"
 
     private lateinit var webView: WebView
-
     private lateinit var bleManager: SmartHomeBleManager
 
     @SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
@@ -71,6 +70,7 @@ class MainActivity : ComponentActivity() {
 
     // ================= JS BRIDGE =================
     inner class AndroidBridge(private val activity: Activity) {
+
         @android.webkit.JavascriptInterface
         fun startBLE() {
             runOnUiThread { Toast.makeText(activity, "Starting BLE scan...", Toast.LENGTH_SHORT).show() }
@@ -81,7 +81,7 @@ class MainActivity : ComponentActivity() {
         fun sendBLE(cmd: String) {
             if (cmd.isNotBlank()) {
                 BLEController.sendCommand(cmd)
-                MQTTController.sendCommand(cmd) // Mirror to MQTT
+                MQTTController.sendCommand(cmd)
             }
         }
 
@@ -97,17 +97,19 @@ class MainActivity : ComponentActivity() {
         }
 
         @android.webkit.JavascriptInterface
-        fun setupBLE() {} // HTML compatibility
+        fun setupBLE() {} // For HTML compatibility
     }
 
     // ================= BLE SCAN & CONNECT =================
     private fun scanAndConnectBLE() {
-        val adapter = bleManager.bluetoothAdapter ?: run {
+        val adapter = bleManager.bluetoothAdapter
+        if (adapter == null) {
             Toast.makeText(this, "Bluetooth not available", Toast.LENGTH_LONG).show()
             return
         }
 
-        val scanner = adapter.bluetoothLeScanner ?: run {
+        val scanner = adapter.bluetoothLeScanner
+        if (scanner == null) {
             Toast.makeText(this, "BLE scanner not available", Toast.LENGTH_LONG).show()
             return
         }
@@ -119,7 +121,12 @@ class MainActivity : ComponentActivity() {
                 if (name.startsWith("RanjanaSmartHome")) {
                     scanner.stopScan(this)
                     BLEController.connect(device)
+                    runOnUiThread { Toast.makeText(this@MainActivity, "BLE Device Found: $name", Toast.LENGTH_SHORT).show() }
                 }
+            }
+
+            override fun onScanFailed(errorCode: Int) {
+                Log.e(TAG, "BLE scan failed: $errorCode")
             }
         }
 
