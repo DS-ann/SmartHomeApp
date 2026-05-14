@@ -1,101 +1,28 @@
 package com.example.ranjanasmarthome
 
-import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
-import android.appwidget.AppWidgetManager
-import android.bluetooth.*
-import android.bluetooth.le.*
-import android.content.*
-import android.content.pm.PackageManager
-import android.graphics.Color
-import android.os.*
+import android.os.Bundle
 import android.util.Log
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.widget.RemoteViews
 import android.widget.Toast
 import androidx.activity.ComponentActivity
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
-import java.util.*
-import java.util.concurrent.ConcurrentLinkedQueue
 
 class MainActivity : ComponentActivity() {
 
-    private val TAG = "RanjanaBLE"
+    private val TAG = "MainActivity"
 
-    // ================= WEBVIEW =================
     private lateinit var webView: WebView
 
-    // ================= BLE UUIDs =================
-    private val SERVICE_UUID = UUID.fromString("6e400001-b5a3-f393-e0a9-e50e24dcca9e")
-    private val CHARACTERISTIC_TX = UUID.fromString("6e400003-b5a3-f393-e0a9-e50e24dcca9e")
-    private val CHARACTERISTIC_RX = UUID.fromString("6e400002-b5a3-f393-e0a9-e50e24dcca9e")
+    private lateinit var bleManager: SmartHomeBleManager
 
-    // ================= BLE =================
-    private var bluetoothAdapter: BluetoothAdapter? = null
-    private var bluetoothGatt: BluetoothGatt? = null
-    private var rxCharacteristic: BluetoothGattCharacteristic? = null
-    private var txCharacteristic: BluetoothGattCharacteristic? = null
-    private var targetDeviceAddress: String? = null
-
-    private val handler = Handler(Looper.getMainLooper())
-
-    // ================= COMMAND QUEUE =================
-    private val bleCommandQueue: Queue<String> = ConcurrentLinkedQueue()
-    private var isWriting = false
-
-    // ================= PERMISSIONS =================
-    private val permissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { result ->
-        val granted: Boolean = result.entries.all { it.value }
-        if (!granted) {
-            Toast.makeText(this, "Bluetooth permissions required", Toast.LENGTH_LONG).show()
-        }
-    }
-
-    // ================= FAST RECONNECT =================
-    private val reconnectRunnable: Runnable = object : Runnable {
-        @SuppressLint("MissingPermission")
-        override fun run() {
-            if (bluetoothGatt != null) return
-            try {
-                targetDeviceAddress?.let { addr ->
-                    val device = bluetoothAdapter?.getRemoteDevice(addr)
-                    bluetoothGatt = device?.connectGatt(this@MainActivity, false, gattCallback)
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Reconnect error", e)
-            }
-            handler.postDelayed(this, 500)
-        }
-    }
-
-    // ================= WIDGET RECEIVER =================
-    private val widgetReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            val cmd = intent?.getStringExtra("cmd") ?: return
-            bleCommandQueue.add(cmd)
-            processQueue()
-        }
-    }
-
-    // =========================================================
-    // ON CREATE
-    // =========================================================
     @SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Bluetooth setup
-        val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-        bluetoothAdapter = bluetoothManager.adapter
-        checkPermissions()
-
-        // WebView setup
+        // ================= WEBVIEW SETUP =================
         webView = WebView(this).apply {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
@@ -113,220 +40,100 @@ class MainActivity : ComponentActivity() {
             loadUrl("file:///android_asset/index.html")
         }
         setContentView(webView)
-    }
 
-    // =========================================================
-    // REGISTER / UNREGISTER WIDGET RECEIVER
-    // =========================================================
-    override fun onResume() {
-        super.onResume()
-        registerReceiver(
-            widgetReceiver,
-            IntentFilter("com.example.ranjanasmarthome.SEND_BLE_CMD")
-        )
-    }
+        // ================= BLE SETUP =================
+        bleManager = SmartHomeBleManager(this)
+        BLEController.init(bleManager)
 
-    override fun onPause() {
-        super.onPause()
-        unregisterReceiver(widgetReceiver)
-    }
-
-    // =========================================================
-    // PERMISSIONS
-    // =========================================================
-    private fun checkPermissions() {
-        val permissions = mutableListOf(Manifest.permission.ACCESS_FINE_LOCATION)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            permissions.add(Manifest.permission.BLUETOOTH_SCAN)
-            permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
+        BLEController.onStateUpdate = { l1, f1, l2, f2 ->
+            Log.d(TAG, "BLE update: L1=$l1 F1=$f1 L2=$l2 F2=$f2")
+            WidgetState.update(l1, f1, l2, f2)
+            updateWebView(l1, f1, l2, f2)
         }
-        val missing = permissions.filter {
-            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+
+        // ================= MQTT SETUP =================
+        MQTTController.init(applicationContext)
+        MQTTController.onStateUpdate = { l1, f1, l2, f2 ->
+            Log.d(TAG, "MQTT update: L1=$l1 F1=$f1 L2=$l2 F2=$f2")
+            WidgetState.update(l1, f1, l2, f2)
+            updateWebView(l1, f1, l2, f2)
         }
-        if (missing.isNotEmpty()) permissionLauncher.launch(missing.toTypedArray())
     }
 
-    // =========================================================
-    // JS BRIDGE
-    // =========================================================
+    /** Update the WebView UI with current device state */
+    private fun updateWebView(light1: Boolean, fan1: Int, light2: Boolean, fan2: Int) {
+        runOnUiThread {
+            val l1 = if (light1) 1 else 0
+            val l2 = if (light2) 1 else 0
+            webView.evaluateJavascript("updateWidget($l1, $fan1, $l2, $fan2);", null)
+        }
+    }
+
+    // ================= JS BRIDGE =================
     inner class AndroidBridge(private val activity: Activity) {
         @android.webkit.JavascriptInterface
-        fun startBLE() = scanForDevices()
-
-        @android.webkit.JavascriptInterface
-        fun connectBLE() {
-            try {
-                targetDeviceAddress?.let { addr ->
-                    val device = bluetoothAdapter?.getRemoteDevice(addr)
-                    bluetoothGatt = device?.connectGatt(activity, false, gattCallback)
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Connect error", e)
-            }
-        }
-
-        @android.webkit.JavascriptInterface
-        fun disconnectBLE() {
-            handler.removeCallbacks(reconnectRunnable)
-            try {
-                bluetoothGatt?.disconnect()
-                bluetoothGatt?.close()
-            } catch (_: Exception) {}
-            bluetoothGatt = null
-            rxCharacteristic = null
-            txCharacteristic = null
-            bleCommandQueue.clear()
-            isWriting = false
-            notifyJS("bleStatus", "Disconnected")
-        }
-
-        @android.webkit.JavascriptInterface
-        fun reconnectBLE() {
-            handler.removeCallbacks(reconnectRunnable)
-            handler.post(reconnectRunnable)
+        fun startBLE() {
+            runOnUiThread { Toast.makeText(activity, "Starting BLE scan...", Toast.LENGTH_SHORT).show() }
+            scanAndConnectBLE()
         }
 
         @android.webkit.JavascriptInterface
         fun sendBLE(cmd: String) {
-            if (cmd.isBlank()) return
-            bleCommandQueue.add(cmd)
-            processQueue()
+            if (cmd.isNotBlank()) {
+                BLEController.sendCommand(cmd)
+                MQTTController.sendCommand(cmd) // Mirror to MQTT
+            }
         }
 
         @android.webkit.JavascriptInterface
-        fun setupBLE() {} // For HTML compatibility
+        fun connectBLE() {
+            runOnUiThread { Toast.makeText(activity, "Connecting BLE...", Toast.LENGTH_SHORT).show() }
+        }
+
+        @android.webkit.JavascriptInterface
+        fun disconnectBLE() {
+            BLEController.disconnect()
+            runOnUiThread { Toast.makeText(activity, "BLE disconnected", Toast.LENGTH_SHORT).show() }
+        }
+
+        @android.webkit.JavascriptInterface
+        fun setupBLE() {} // HTML compatibility
     }
 
-    // =========================================================
-    // SCAN
-    // =========================================================
-    @SuppressLint("MissingPermission")
-    private fun scanForDevices() {
-        val scanner = bluetoothAdapter?.bluetoothLeScanner ?: return
-        notifyJS("bleStatus", "Scanning...")
+    // ================= BLE SCAN & CONNECT =================
+    private fun scanAndConnectBLE() {
+        val adapter = bleManager.bluetoothAdapter ?: run {
+            Toast.makeText(this, "Bluetooth not available", Toast.LENGTH_LONG).show()
+            return
+        }
 
-        val callback = object : ScanCallback() {
-            override fun onScanResult(callbackType: Int, result: ScanResult?) {
+        val scanner = adapter.bluetoothLeScanner ?: run {
+            Toast.makeText(this, "BLE scanner not available", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val scanCallback = object : android.bluetooth.le.ScanCallback() {
+            override fun onScanResult(callbackType: Int, result: android.bluetooth.le.ScanResult?) {
                 val device = result?.device ?: return
                 val name = device.name ?: return
                 if (name.startsWith("RanjanaSmartHome")) {
-                    targetDeviceAddress = device.address
                     scanner.stopScan(this)
-                    notifyJS("bleFound", name)
+                    BLEController.connect(device)
                 }
             }
         }
 
-        val settings = ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build()
-        scanner.startScan(null, settings, callback)
+        val settings = android.bluetooth.le.ScanSettings.Builder()
+            .setScanMode(android.bluetooth.le.ScanSettings.SCAN_MODE_LOW_LATENCY)
+            .build()
+
+        scanner.startScan(null, settings, scanCallback)
     }
 
-    // =========================================================
-    // GATT CALLBACK
-    // =========================================================
-    private val gattCallback = object : BluetoothGattCallback() {
-        @SuppressLint("MissingPermission")
-        override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
-            when (newState) {
-                BluetoothProfile.STATE_CONNECTED -> {
-                    notifyJS("bleStatus", "Connected")
-                    handler.removeCallbacks(reconnectRunnable)
-                    gatt.discoverServices()
-                }
-                BluetoothProfile.STATE_DISCONNECTED -> {
-                    notifyJS("bleStatus", "Disconnected")
-                    try { bluetoothGatt?.close() } catch (_: Exception) {}
-                    bluetoothGatt = null
-                    rxCharacteristic = null
-                    txCharacteristic = null
-                    handler.postDelayed(reconnectRunnable, 500)
-                }
-            }
-        }
-
-        @SuppressLint("MissingPermission")
-        override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
-            val service = gatt.getService(SERVICE_UUID) ?: return
-            rxCharacteristic = service.getCharacteristic(CHARACTERISTIC_RX)
-            txCharacteristic = service.getCharacteristic(CHARACTERISTIC_TX)
-
-            gatt.setCharacteristicNotification(txCharacteristic, true)
-            val descriptor =
-                txCharacteristic?.getDescriptor(UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"))
-            descriptor?.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-            descriptor?.let { gatt.writeDescriptor(it) }
-
-            notifyJS("bleStatus", "Ready")
-            processQueue()
-        }
-
-        override fun onCharacteristicChanged(
-            gatt: BluetoothGatt,
-            characteristic: BluetoothGattCharacteristic
-        ) {
-            val msg = characteristic.value?.toString(Charsets.UTF_8) ?: return
-            notifyJS("bleData", msg)
-            // Optional: parse msg and update widget colors
-        }
-
-        override fun onCharacteristicWrite(
-            gatt: BluetoothGatt,
-            characteristic: BluetoothGattCharacteristic,
-            status: Int
-        ) {
-            isWriting = false
-            processQueue()
-        }
-    }
-
-    // =========================================================
-    // BLE QUEUE
-    // =========================================================
-    @SuppressLint("MissingPermission")
-    private fun processQueue() {
-        if (isWriting) return
-        val cmd = bleCommandQueue.poll() ?: return
-        val ch = rxCharacteristic ?: return
-        try {
-            ch.value = cmd.toByteArray()
-            ch.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-            isWriting = true
-            bluetoothGatt?.writeCharacteristic(ch)
-            Log.d(TAG, "TX: $cmd")
-        } catch (e: Exception) {
-            isWriting = false
-            Log.e(TAG, "Write failed", e)
-        }
-    }
-
-    // =========================================================
-    // NOTIFY JS
-    // =========================================================
-    private fun notifyJS(event: String, data: String) {
-        runOnUiThread {
-            when (event) {
-                "bleStatus" -> webView.evaluateJavascript("onBLEStatus('$data');", null)
-                "bleData" -> {
-                    val escaped = data.replace("\\", "\\\\").replace("'", "\\'")
-                    webView.evaluateJavascript("onBLEData('$escaped');", null)
-                }
-                "bleFound" -> webView.evaluateJavascript("connectBLE();", null)
-            }
-        }
-    }
-
-    // =========================================================
-    // BACK BUTTON & CLEANUP
-    // =========================================================
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        if (webView.canGoBack()) webView.goBack() else super.onBackPressed()
-    }
-
+    // ================= CLEANUP =================
     override fun onDestroy() {
         super.onDestroy()
-        handler.removeCallbacksAndMessages(null)
-        bluetoothGatt?.disconnect()
-        bluetoothGatt?.close()
+        BLEController.disconnect()
+        MQTTController.disconnect()
     }
 }
