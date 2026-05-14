@@ -20,23 +20,21 @@ class SmartHomeWidget : AppWidgetProvider() {
         const val ACTION_FAN2 = "ACTION_FAN2"
     }
 
-    // Store all states as Boolean
-    private val toggleState = mutableMapOf(
+    // Store states with correct types: Boolean for lights, Int for fans
+    private val toggleState = mutableMapOf<String, Any>(
         ACTION_LIGHT1 to false,
+        ACTION_FAN1 to 0,
         ACTION_LIGHT2 to false,
-        ACTION_FAN1 to false,
-        ACTION_FAN2 to false
+        ACTION_FAN2 to 0
     )
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
         for (id in appWidgetIds) {
             val views = RemoteViews(context.packageName, R.layout.widget_control)
-
             views.setOnClickPendingIntent(R.id.light1Button, getPendingIntent(context, ACTION_LIGHT1))
             views.setOnClickPendingIntent(R.id.light2Button, getPendingIntent(context, ACTION_LIGHT2))
             views.setOnClickPendingIntent(R.id.fan1Button, getPendingIntent(context, ACTION_FAN1))
             views.setOnClickPendingIntent(R.id.fan2Button, getPendingIntent(context, ACTION_FAN2))
-
             appWidgetManager.updateAppWidget(id, views)
         }
 
@@ -44,21 +42,13 @@ class SmartHomeWidget : AppWidgetProvider() {
         BLEController.onStateUpdate = { l1, f1, l2, f2 ->
             Log.d(TAG, "BLE update: L1=$l1 F1=$f1 L2=$l2 F2=$f2")
             updateWidgetUI(context, l1, f1, l2, f2)
-            // Sync internal state
-            toggleState[ACTION_LIGHT1] = l1
-            toggleState[ACTION_FAN1] = f1
-            toggleState[ACTION_LIGHT2] = l2
-            toggleState[ACTION_FAN2] = f2
+            syncInternalState(l1, f1, l2, f2)
         }
 
         MQTTController.onStateUpdate = { l1, f1, l2, f2 ->
             Log.d(TAG, "MQTT update: L1=$l1 F1=$f1 L2=$l2 F2=$f2")
             updateWidgetUI(context, l1, f1, l2, f2)
-            // Sync internal state
-            toggleState[ACTION_LIGHT1] = l1
-            toggleState[ACTION_FAN1] = f1
-            toggleState[ACTION_LIGHT2] = l2
-            toggleState[ACTION_FAN2] = f2
+            syncInternalState(l1, f1, l2, f2)
         }
 
         MQTTController.connect()
@@ -67,42 +57,65 @@ class SmartHomeWidget : AppWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         val action = intent.action ?: return
-
         when (action) {
-            ACTION_LIGHT1 -> toggleRelay(context, ACTION_LIGHT1, 0)
-            ACTION_FAN1 -> toggleRelay(context, ACTION_FAN1, 1)
-            ACTION_LIGHT2 -> toggleRelay(context, ACTION_LIGHT2, 4)
-            ACTION_FAN2 -> toggleRelay(context, ACTION_FAN2, 5)
+            ACTION_LIGHT1 -> toggleRelay(context, ACTION_LIGHT1, isLight = true)
+            ACTION_LIGHT2 -> toggleRelay(context, ACTION_LIGHT2, isLight = true)
+            ACTION_FAN1 -> toggleRelay(context, ACTION_FAN1, isLight = false)
+            ACTION_FAN2 -> toggleRelay(context, ACTION_FAN2, isLight = false)
         }
     }
 
-    private fun toggleRelay(context: Context, actionKey: String, relayIndex: Int) {
-        val current = toggleState[actionKey] ?: false
-        val newState = !current
-        toggleState[actionKey] = newState
-
-        // Send command as 0/1
-        val cmd = "$relayIndex${if (newState) 1 else 0}"
-        BLEController.sendCommand(cmd)
-        MQTTController.sendCommand(cmd)
+    private fun toggleRelay(context: Context, key: String, isLight: Boolean) {
+        if (isLight) {
+            val current = toggleState[key] as? Boolean ?: false
+            val newState = !current
+            toggleState[key] = newState
+            val relayIndex = when (key) {
+                ACTION_LIGHT1 -> 0
+                ACTION_LIGHT2 -> 4
+                else -> 0
+            }
+            val cmd = "$relayIndex${if (newState) 1 else 0}"
+            BLEController.sendCommand(cmd)
+            MQTTController.sendCommand(cmd)
+        } else {
+            // Fan toggle: simple on/off for widget (0 or 100)
+            val current = toggleState[key] as? Int ?: 0
+            val newState = if (current == 0) 100 else 0
+            toggleState[key] = newState
+            val relayIndex = when (key) {
+                ACTION_FAN1 -> 1
+                ACTION_FAN2 -> 5
+                else -> 1
+            }
+            val cmd = "$relayIndex${if (newState > 0) 1 else 0}" // ESP32 expects 0/1
+            BLEController.sendCommand(cmd)
+            MQTTController.sendCommand(cmd)
+        }
 
         // Update UI
         updateWidgetUI(
             context,
-            toggleState[ACTION_LIGHT1] ?: false,
-            toggleState[ACTION_FAN1] ?: false,
-            toggleState[ACTION_LIGHT2] ?: false,
-            toggleState[ACTION_FAN2] ?: false
+            toggleState[ACTION_LIGHT1] as Boolean,
+            toggleState[ACTION_FAN1] as Int,
+            toggleState[ACTION_LIGHT2] as Boolean,
+            toggleState[ACTION_FAN2] as Int
         )
     }
 
-    private fun updateWidgetUI(context: Context, l1: Boolean, f1: Boolean, l2: Boolean, f2: Boolean) {
-        val views = RemoteViews(context.packageName, R.layout.widget_control)
+    private fun syncInternalState(l1: Boolean, f1: Int, l2: Boolean, f2: Int) {
+        toggleState[ACTION_LIGHT1] = l1
+        toggleState[ACTION_FAN1] = f1
+        toggleState[ACTION_LIGHT2] = l2
+        toggleState[ACTION_FAN2] = f2
+    }
 
+    private fun updateWidgetUI(context: Context, l1: Boolean, f1: Int, l2: Boolean, f2: Int) {
+        val views = RemoteViews(context.packageName, R.layout.widget_control)
         views.setInt(R.id.light1Button, "setBackgroundColor", if (l1) 0xFFFFAA00.toInt() else 0xFF555555.toInt())
         views.setInt(R.id.light2Button, "setBackgroundColor", if (l2) 0xFFFFAA00.toInt() else 0xFF555555.toInt())
-        views.setInt(R.id.fan1Button, "setBackgroundColor", if (f1) 0xFF00FF00.toInt() else 0xFF555555.toInt())
-        views.setInt(R.id.fan2Button, "setBackgroundColor", if (f2) 0xFF00FF00.toInt() else 0xFF555555.toInt())
+        views.setInt(R.id.fan1Button, "setBackgroundColor", if (f1 > 0) 0xFF00FF00.toInt() else 0xFF555555.toInt())
+        views.setInt(R.id.fan2Button, "setBackgroundColor", if (f2 > 0) 0xFF00FF00.toInt() else 0xFF555555.toInt())
 
         val manager = AppWidgetManager.getInstance(context)
         val ids = manager.getAppWidgetIds(ComponentName(context, SmartHomeWidget::class.java))
