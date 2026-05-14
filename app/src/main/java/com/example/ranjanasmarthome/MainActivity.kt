@@ -2,6 +2,7 @@ package com.example.ranjanasmarthome
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.bluetooth.BluetoothManager
 import android.os.Bundle
 import android.util.Log
 import android.webkit.WebChromeClient
@@ -75,8 +76,7 @@ class MainActivity : ComponentActivity() {
         fun startBLE() {
             runOnUiThread {
                 Toast.makeText(activity, "Starting BLE scan...", Toast.LENGTH_SHORT).show()
-                // Start scanning via BLEController
-                BLEController.startScan()
+                scanAndConnectBLE()
             }
         }
 
@@ -105,6 +105,46 @@ class MainActivity : ComponentActivity() {
 
         @android.webkit.JavascriptInterface
         fun setupBLE() {} // For HTML compatibility
+    }
+
+    // ================= BLE SCAN & CONNECT =================
+    private fun scanAndConnectBLE() {
+        val bluetoothManager = getSystemService(BLUETOOTH_SERVICE) as BluetoothManager
+        val adapter = bluetoothManager.adapter
+        if (adapter == null || !adapter.isEnabled) {
+            Toast.makeText(this, "Bluetooth not available", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val scanner = adapter.bluetoothLeScanner
+        if (scanner == null) {
+            Toast.makeText(this, "BLE scanner not available", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val scanCallback = object : android.bluetooth.le.ScanCallback() {
+            override fun onScanResult(callbackType: Int, result: android.bluetooth.le.ScanResult?) {
+                val device = result?.device ?: return
+                val name = device.name ?: return
+                if (name.startsWith("RanjanaSmartHome")) {
+                    scanner.stopScan(this)
+                    BLEController.connect(device)
+                    runOnUiThread {
+                        Toast.makeText(this@MainActivity, "BLE Device Found: $name", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+
+            override fun onScanFailed(errorCode: Int) {
+                Log.e(TAG, "BLE scan failed: $errorCode")
+            }
+        }
+
+        val settings = android.bluetooth.le.ScanSettings.Builder()
+            .setScanMode(android.bluetooth.le.ScanSettings.SCAN_MODE_LOW_LATENCY)
+            .build()
+
+        scanner.startScan(null, settings, scanCallback)
     }
 
     // ================= CLEANUP =================
