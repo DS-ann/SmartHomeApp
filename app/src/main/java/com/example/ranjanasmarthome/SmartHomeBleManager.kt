@@ -14,8 +14,8 @@ class SmartHomeBleManager(context: Context) : BleManager(context) {
 
     // Nordic UART Service UUIDs
     private val uartServiceUuid = UUID.fromString("6e400001-b5a3-f393-e0a9-e50e24dcca9e")
-    private val txCharacteristicUuid = UUID.fromString("6e400003-b5a3-f393-e0a9-e50e24dcca9e")
-    private val rxCharacteristicUuid = UUID.fromString("6e400002-b5a3-f393-e0a9-e50e24dcca9e")
+    private val txCharacteristicUuid = UUID.fromString("6e400003-b5a3-f393-e0a9-e50e24dcca9e") // device → phone
+    private val rxCharacteristicUuid = UUID.fromString("6e400002-b5a3-f393-e0a9-e50e24dcca9e") // phone → device
 
     private var txCharacteristic: BluetoothGattCharacteristic? = null
     private var rxCharacteristic: BluetoothGattCharacteristic? = null
@@ -39,7 +39,8 @@ class SmartHomeBleManager(context: Context) : BleManager(context) {
                     onDataReceived(data)
                 }
                 enableNotifications(characteristic).enqueue()
-            }
+                Log.d(TAG, "Notifications enabled on TX characteristic")
+            } ?: Log.w(TAG, "TX characteristic not found during initialization")
         }
 
         override fun onDeviceDisconnected() {
@@ -48,7 +49,6 @@ class SmartHomeBleManager(context: Context) : BleManager(context) {
             Log.d(TAG, "BLE device disconnected")
         }
 
-        // **Required abstract method**
         override fun onServicesInvalidated() {
             txCharacteristic = null
             rxCharacteristic = null
@@ -57,20 +57,25 @@ class SmartHomeBleManager(context: Context) : BleManager(context) {
     }
 
     private fun onDataReceived(data: Data) {
-        val msg = data.value?.toString(Charsets.UTF_8) ?: return
-        BLEController.onMessageReceived(msg)
+        val msg = data.value?.toString(Charsets.UTF_8)
+        if (!msg.isNullOrEmpty()) {
+            Log.d(TAG, "Received BLE message: $msg")
+            BLEController.onMessageReceived(msg)
+        }
     }
 
     /** Send a command to the BLE device */
     fun sendCommand(cmd: String) {
         val device = getBluetoothDevice()
-        if (device == null) {
-            Log.w(TAG, "Cannot send command, no device connected")
+        if (device == null || !isConnected) {
+            Log.w(TAG, "Cannot send command, device not connected")
             return
         }
 
         rxCharacteristic?.let { characteristic ->
-            writeCharacteristic(characteristic, cmd.toByteArray(Charsets.UTF_8)).enqueue()
+            writeCharacteristic(characteristic, cmd.toByteArray(Charsets.UTF_8))
+                .with { _, _ -> Log.d(TAG, "Sent BLE command: $cmd") }
+                .enqueue()
         } ?: Log.w(TAG, "Cannot send command, RX characteristic not initialized")
     }
 }
