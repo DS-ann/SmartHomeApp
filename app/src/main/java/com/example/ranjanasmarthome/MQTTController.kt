@@ -18,20 +18,18 @@ object MQTTController {
 
     private lateinit var client: MqttAndroidClient
 
-    // Mutable connection state
     var isConnected: Boolean = false
         private set
 
-    // Callback for widget/other components
-    var onStateUpdate: ((light1: Boolean, fan1: Boolean, light2: Boolean, fan2: Boolean) -> Unit)? = null
+    // Callback for UI updates (fans are Int now)
+    var onStateUpdate: ((light1: Boolean, fan1: Int, light2: Boolean, fan2: Int) -> Unit)? = null
 
     // Local device state
     private var light1State = false
-    private var fan1State = false
+    private var fan1State = 0
     private var light2State = false
-    private var fan2State = false
+    private var fan2State = 0
 
-    /** Initialize MQTT client and start connection */
     fun init(context: Context) {
         client = MqttAndroidClient(context, SERVER_URI, CLIENT_ID).apply {
             setCallback(object : MqttCallback {
@@ -50,7 +48,6 @@ object MQTTController {
         connect()
     }
 
-    /** Connect to MQTT broker */
     fun connect() {
         if (!::client.isInitialized) return
 
@@ -79,7 +76,6 @@ object MQTTController {
         }
     }
 
-    /** Subscribe to ESP32 update topic */
     private fun subscribeToUpdates() {
         try {
             client.subscribe(TOPIC_UPDATE, 0) { _, message ->
@@ -90,7 +86,6 @@ object MQTTController {
         }
     }
 
-    /** Send a command to ESP32 */
     fun sendCommand(cmd: String) {
         if (!isConnected) {
             Log.w(TAG, "Cannot send command, MQTT not connected")
@@ -103,17 +98,16 @@ object MQTTController {
         }
     }
 
-    /** Decode messages from ESP32 and update local state */
     private fun decodeMessage(msg: String) {
         try {
             when {
                 msg.startsWith("a:") -> {
                     light1State = msg.getOrNull(3) == '1'
-                    fan1State = msg.getOrNull(4) == '1'
+                    fan1State = if (msg.getOrNull(4) == '1') 1 else 0
                 }
                 msg.startsWith("b:") -> {
                     light2State = msg.getOrNull(3) == '1'
-                    fan2State = msg.getOrNull(4) == '1'
+                    fan2State = if (msg.getOrNull(4) == '1') 1 else 0
                 }
             }
             onStateUpdate?.invoke(light1State, fan1State, light2State, fan2State)
@@ -122,7 +116,6 @@ object MQTTController {
         }
     }
 
-    /** Disconnect from MQTT broker */
     fun disconnect() {
         try {
             if (::client.isInitialized && isConnected) {
