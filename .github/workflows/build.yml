@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch: 
+  workflow_dispatch:
 
 jobs:
   build:
@@ -31,11 +31,20 @@ jobs:
       - name: Build Debug APK
         run: ./gradlew assembleDebug --parallel --daemon
 
-      # ================= Upload APK to GitHub Release =================
+      # ================= Upload APK as Artifact =================
+      - name: Upload APK as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RanjanaSmartHome-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+
+      # ================= Create GitHub Release + Upload APK =================
       - name: Create GitHub Release and Upload APK
         uses: softprops/action-gh-release@v1
         with:
           tag_name: apk-${{ github.run_number }}
+          name: "RanjanaSmartHome APK ${{ github.run_number }}"
           files: app/build/outputs/apk/debug/app-debug.apk
+          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
