@@ -20,7 +20,22 @@ class MainActivity : ComponentActivity() {
 
     private val TAG = "MainActivity"
     private lateinit var webView: WebView
-    private val PERMISSIONS_REQUEST_CODE = 1001
+
+    private val REQUEST_BLE_PERMISSIONS = 101
+
+    private val REQUIRED_PERMISSIONS = mutableListOf(
+        Manifest.permission.INTERNET,
+        Manifest.permission.BLUETOOTH,
+        Manifest.permission.BLUETOOTH_ADMIN,
+        Manifest.permission.FOREGROUND_SERVICE
+    ).apply {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            add(Manifest.permission.BLUETOOTH_SCAN)
+            add(Manifest.permission.BLUETOOTH_CONNECT)
+        } else {
+            add(Manifest.permission.ACCESS_FINE_LOCATION) // needed for BLE on older Android
+        }
+    }.toTypedArray()
 
     @SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -45,72 +60,31 @@ class MainActivity : ComponentActivity() {
         }
         setContentView(webView)
 
-        // ================= REQUEST PERMISSIONS =================
-        requestPermissionsIfNeeded()
-    }
-
-    /** Request runtime permissions for BLE + location + foreground service */
-    private fun requestPermissionsIfNeeded() {
-        val permissions = mutableListOf<String>()
-
-        // Location required for BLE scanning on older Android
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
-            != PackageManager.PERMISSION_GRANTED
-        ) {
-            permissions.add(Manifest.permission.ACCESS_FINE_LOCATION)
-        }
-
-        // Bluetooth permissions for Android 12+
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN)
-                != PackageManager.PERMISSION_GRANTED
-            ) {
-                permissions.add(Manifest.permission.BLUETOOTH_SCAN)
-            }
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT)
-                != PackageManager.PERMISSION_GRANTED
-            ) {
-                permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
-            }
-        }
-
-        // Foreground service
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.FOREGROUND_SERVICE)
-                != PackageManager.PERMISSION_GRANTED
-            ) {
-                permissions.add(Manifest.permission.FOREGROUND_SERVICE)
-            }
-        }
-
-        if (permissions.isNotEmpty()) {
-            ActivityCompat.requestPermissions(this, permissions.toTypedArray(), PERMISSIONS_REQUEST_CODE)
-        } else {
+        // ================= PERMISSIONS =================
+        if (allPermissionsGranted()) {
             startSmartHomeService()
+        } else {
+            ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_BLE_PERMISSIONS)
         }
-    }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == PERMISSIONS_REQUEST_CODE) {
-            if (grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
-                startSmartHomeService()
-            } else {
-                Toast.makeText(this, "Permissions are required for BLE operation", Toast.LENGTH_LONG).show()
-            }
-        }
-    }
-
-    /** Start foreground service that manages BLE + MQTT */
-    private fun startSmartHomeService() {
-        val serviceIntent = Intent(this, SmartHomeService::class.java)
-        ContextCompat.startForegroundService(this, serviceIntent)
-
-        // Observe state updates from service
+        // ================= OBSERVE WIDGET STATE =================
         WidgetState.onStateUpdate = { l1, f1, l2, f2 ->
             Log.d(TAG, "WidgetState update: L1=$l1 F1=$f1 L2=$l2 F2=$f2")
             updateWebView(l1, f1, l2, f2)
         }
+    }
+
+    /** Check if all required permissions are granted */
+    private fun allPermissionsGranted(): Boolean =
+        REQUIRED_PERMISSIONS.all {
+            ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
+        }
+
+    /** Start the foreground service handling BLE + MQTT */
+    private fun startSmartHomeService() {
+        val serviceIntent = Intent(this, SmartHomeService::class.java)
+        startForegroundService(serviceIntent)
+        Toast.makeText(this, "Smart Home Service started", Toast.LENGTH_SHORT).show()
     }
 
     /** Update WebView UI safely */
@@ -154,13 +128,34 @@ class MainActivity : ComponentActivity() {
         @android.webkit.JavascriptInterface
         fun startBLE() {
             runOnUiThread {
-                Toast.makeText(activity, "BLE scanning handled by background service", Toast.LENGTH_SHORT).show()
+                Toast.makeText(activity, "Starting BLE scan in background...", Toast.LENGTH_SHORT).show()
+                // The service handles scanning in background
+            }
+        }
+    }
+
+    // ================= PERMISSIONS CALLBACK =================
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+
+        if (requestCode == REQUEST_BLE_PERMISSIONS) {
+            val allGranted = grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }
+            if (allGranted) {
+                startSmartHomeService()
+            } else {
+                Toast.makeText(this, "BLE permissions denied. App cannot run properly.", Toast.LENGTH_LONG).show()
             }
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        // Do not stop the service; foreground service keeps BLE/MQTT alive
+        // Disconnect UI-level BLE only if needed; service keeps running
+        BLEController.disconnect()
+        MQTTController.disconnect()
     }
 }
