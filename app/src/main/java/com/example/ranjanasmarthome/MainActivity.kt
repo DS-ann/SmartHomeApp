@@ -41,6 +41,7 @@ class MainActivity : ComponentActivity() {
             val allGranted = results.values.all { it }
             if (allGranted) {
                 startSmartHomeService()
+                initControllers()
             } else {
                 Toast.makeText(this, "BLE permissions denied. App cannot run.", Toast.LENGTH_LONG).show()
             }
@@ -67,6 +68,7 @@ class MainActivity : ComponentActivity() {
         // ===================== PERMISSIONS CHECK =====================
         if (allPermissionsGranted()) {
             startSmartHomeService()
+            initControllers()
         } else {
             requestPermissionsLauncher.launch(REQUIRED_PERMISSIONS)
         }
@@ -94,12 +96,27 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // Initialize BLE and MQTT controllers and register with service
+    private fun initControllers() {
+        val bleManager = SmartHomeBleManager(this)
+        val mqttController = MQTTController(this)
+
+        SmartHomeService.setBleManager(bleManager)
+        SmartHomeService.setMqttController(mqttController)
+
+        // Connect BLE/MQTT automatically if needed
+        bleManager.connectSavedDevice()
+        mqttController.connect()
+    }
+
     // Update WebView UI with WidgetState
-    private fun updateWebView(light1: Boolean, fan1: Int, light2: Boolean, fan2: Int) {
+    private fun updateWebView(light1: Boolean, fan1: Boolean, light2: Boolean, fan2: Boolean) {
         runOnUiThread {
             val l1 = if (light1) 1 else 0
+            val f1 = if (fan1) 1 else 0
             val l2 = if (light2) 1 else 0
-            webView.evaluateJavascript("updateWidget($l1,$fan1,$l2,$fan2);", null)
+            val f2 = if (fan2) 1 else 0
+            webView.evaluateJavascript("updateWidget($l1,$f1,$l2,$f2);", null)
         }
     }
 
@@ -107,36 +124,30 @@ class MainActivity : ComponentActivity() {
     inner class AndroidBridge {
 
         @android.webkit.JavascriptInterface
-        fun sendBLE(cmd: String) {
-            if (cmd.isNotBlank()) {
-                BLEController.sendCommand(cmd)
-                MQTTController.sendCommand(cmd)
-            }
+        fun sendRelay(relayNumber: String, state: Boolean) {
+            // Always send via BLE + MQTT
+            SmartHomeService.sendRelayCommand(relayNumber, state)
         }
 
         @android.webkit.JavascriptInterface
         fun startBLE() {
-            // Service handles scanning
+            Log.d(TAG, "JS requested BLE start")
         }
 
         @android.webkit.JavascriptInterface
         fun disconnectBLE() {
-            BLEController.disconnect()
+            SmartHomeBleManager.disconnectAll()
         }
 
         @android.webkit.JavascriptInterface
         fun connectBLE() {
-            // Optional: show toast or just log
             Log.d(TAG, "JS requested BLE connect")
         }
-
-        @android.webkit.JavascriptInterface
-        fun setupBLE() {} // For HTML compatibility
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        BLEController.disconnect()
-        MQTTController.disconnect()
+        SmartHomeBleManager.disconnectAll()
+        MQTTController.disconnectAll()
     }
 }
