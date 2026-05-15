@@ -25,14 +25,12 @@ object MQTTController {
     var isConnected: Boolean = false
         private set
 
-    // Callback for UI updates: light1, fan1 (Int), light2, fan2 (Int)
+    /** Callback for UI updates (widget) */
     var onStateUpdate: ((light1: Boolean, fan1: Int, light2: Boolean, fan2: Int) -> Unit)? = null
 
-    // Local device state
-    private var light1State: Boolean = false
-    private var fan1State: Int = 0
-    private var light2State: Boolean = false
-    private var fan2State: Int = 0
+    // Local state caches
+    private val relayState = BooleanArray(8) { false }
+    private val fanSpeed = IntArray(2) { 0 }
 
     /** Initialize MQTT client */
     fun init(context: Context) {
@@ -49,7 +47,6 @@ object MQTTController {
 
             override fun deliveryComplete(token: IMqttDeliveryToken?) {}
         })
-
         connect()
     }
 
@@ -106,30 +103,50 @@ object MQTTController {
         }
     }
 
-    /** Decode incoming MQTT messages and update WidgetState */
+    /** Decode incoming MQTT messages and update states */
     private fun decodeMessage(msg: String) {
         try {
             when {
-                msg.startsWith("a:") && msg.length >= 5 -> {
-                    light1State = msg[2] == '1'
-                    fan1State = msg[3].digitToIntOrNull() ?: 0
+                msg.startsWith("a:") && msg.contains("R") -> {
+                    val rIndex = msg.indexOf('R')
+                    for (i in 0..3) {
+                        val c = msg.getOrNull(rIndex + 1 + i) ?: '0'
+                        relayState[i] = c == '1'
+                    }
                 }
-                msg.startsWith("b:") && msg.length >= 5 -> {
-                    light2State = msg[2] == '1'
-                    fan2State = msg[3].digitToIntOrNull() ?: 0
+                msg.startsWith("b:") && msg.contains("R") -> {
+                    val rIndex = msg.indexOf('R')
+                    for (i in 0..3) {
+                        val c = msg.getOrNull(rIndex + 1 + i) ?: '0'
+                        relayState[4 + i] = c == '1'
+                    }
+                }
+                msg.startsWith("F") -> {
+                    val parts = msg.substring(1).split(",")
+                    if (parts.size == 2) {
+                        val fan = parts[0].toIntOrNull()
+                        val speed = parts[1].toIntOrNull()
+                        if (fan in 0..1 && speed in 0..4) fanSpeed[fan] = speed
+                    }
                 }
             }
 
-            // Update WidgetState
-            WidgetState.onPartialUpdate(
-                light1 = light1State,
-                fan1 = fan1State,
-                light2 = light2State,
-                fan2 = fan2State
+            // Update WidgetState (only first 2 relays, fan ignored)
+            WidgetState.update(
+                light1 = relayState[0],
+                fan1 = 0,
+                light2 = relayState[1],
+                fan2 = 0
             )
 
-            // Notify UI callbacks
-            onStateUpdate?.invoke(light1State, fan1State, light2State, fan2State)
+            // Update WebView (all relays + fans)
+            MainActivity.updateWebViewFull(relayState, fanSpeed)
+
+            // Optional UI callback
+            onStateUpdate?.invoke(
+                relayState[0], 0,
+                relayState[1], 0
+            )
 
         } catch (e: Exception) {
             Log.e(TAG, "Failed to decode MQTT message: $msg", e)
