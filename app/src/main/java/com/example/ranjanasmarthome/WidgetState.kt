@@ -2,19 +2,21 @@ package com.example.ranjanasmarthome
 
 object WidgetState {
 
-    // Fans: 0 = OFF, 1 = ON
+    // Only 4 devices for the widget
+    var light1: Boolean = false
     var fan1: Int = 0
+    var light2: Boolean = false
     var fan2: Int = 0
 
-    // Lights: false = OFF, true = ON
-    var light1: Boolean = false
-    var light2: Boolean = false
+    // Callback for widget updates
+    var onStateUpdate: ((l1: Boolean, f1: Int, l2: Boolean, f2: Int) -> Unit)? = null
 
-    // Optional callback for UI updates (MainActivity)
-    var onStateUpdate: ((light1: Boolean, fan1: Int, light2: Boolean, fan2: Int) -> Unit)? = null
-
-    // Call this whenever state changes to notify UI
-    fun notifyUpdate() {
-        onStateUpdate?.invoke(light1, fan1, light2, fan2)
+    // Update the 4 tracked devices
+    fun update(l1: Boolean, f1: Int, l2: Boolean, f2: Int) {
+        light1 = l1
+        fan1 = f1
+        light2 = l2
+        fan2 = f2
+        onStateUpdate?.invoke(l1, f1, l2, f2)
     }
 }
