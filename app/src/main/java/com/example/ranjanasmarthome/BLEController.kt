@@ -18,10 +18,7 @@ object BLEController {
     var deviceConnected: Boolean = false
         private set
 
-    /**
-     * Callback for UI updates or widget updates.
-     * Emits: light1 (Boolean), fan1 (Int), light2 (Boolean), fan2 (Int)
-     */
+    /** Callback for UI updates or widget updates */
     var onStateUpdate: ((light1: Boolean, fan1: Int, light2: Boolean, fan2: Int) -> Unit)? = null
 
     /** Initialize BLE controller with SmartHomeBleManager */
@@ -78,41 +75,54 @@ object BLEController {
 
     /**
      * Called by BLE manager when a message is received.
-     * Parses and updates WidgetState.
+     * Parses ESP32 messages (a:Rxxxx, b:Rxxxx, F0,2) and updates states.
      */
     fun onMessageReceived(msg: String) {
         try {
-            // Default values: null = no change
-            var light1: Boolean? = null
-            var fan1: Int? = null
-            var light2: Boolean? = null
-            var fan2: Int? = null
+            val relayState = BooleanArray(8) { false } // temporary, only relevant relays updated
+            val fanSpeed = IntArray(2) { 0 }
 
-            // Example message formats:
-            // "a:L1F1" => light1, fan1
-            // "b:L2F2" => light2, fan2
             when {
-                msg.startsWith("a:") && msg.length >= 5 -> {
-                    light1 = msg[2] == '1'
-                    fan1 = msg[3].digitToIntOrNull() ?: 0
+                msg.startsWith("a:") && msg.contains("R") -> {
+                    val rIndex = msg.indexOf('R')
+                    for (i in 0..3) {
+                        val c = msg.getOrNull(rIndex + 1 + i) ?: '0'
+                        relayState[i] = c == '1'
+                    }
                 }
-                msg.startsWith("b:") && msg.length >= 5 -> {
-                    light2 = msg[2] == '1'
-                    fan2 = msg[3].digitToIntOrNull() ?: 0
+                msg.startsWith("b:") && msg.contains("R") -> {
+                    val rIndex = msg.indexOf('R')
+                    for (i in 0..3) {
+                        val c = msg.getOrNull(rIndex + 1 + i) ?: '0'
+                        relayState[4 + i] = c == '1'
+                    }
+                }
+                msg.startsWith("F") -> {
+                    val parts = msg.substring(1).split(",")
+                    if (parts.size == 2) {
+                        val fan = parts[0].toIntOrNull()
+                        val speed = parts[1].toIntOrNull()
+                        if (fan in 0..1 && speed in 0..4) fanSpeed[fan] = speed
+                    }
                 }
             }
 
-            // Update WidgetState partially
-            WidgetState.onPartialUpdate(
-                light1 = light1,
-                fan1 = fan1,
-                light2 = light2,
-                fan2 = fan2
+            // Update WidgetState (only first 2 relays, fan ignored)
+            WidgetState.update(
+                light1 = relayState[0],
+                fan1 = 0, // widget ignores fan
+                light2 = relayState[1],
+                fan2 = 0
             )
 
-            // Notify UI / MainActivity callbacks
-            val state = WidgetState.getState()
-            onStateUpdate?.invoke(state.light1, state.fan1, state.light2, state.fan2)
+            // Update WebView (all relays + fans)
+            MainActivity.updateWebViewFull(relayState, fanSpeed)
+
+            // Optional UI callback
+            onStateUpdate?.invoke(
+                relayState[0], 0,
+                relayState[1], 0
+            )
 
         } catch (e: Exception) {
             Log.e(TAG, "Failed to parse BLE message: $msg", e)
