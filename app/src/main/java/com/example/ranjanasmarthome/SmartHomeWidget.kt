@@ -1,113 +1,144 @@
 package com.example.ranjanasmarthome
 
-import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.widget.RemoteViews
-import android.widget.Toast
+import android.view.animation.AnimationUtils
+import android.util.Log
+
+private const val TAG = "SmartHomeWidget"
 
 class SmartHomeWidget : AppWidgetProvider() {
 
     companion object {
-        const val ACTION_TOGGLE = "com.example.ranjanasmarthome.ACTION_TOGGLE"
-        const val EXTRA_BUTTON_ID = "extra_button_id"
+        const val ACTION_TOGGLE_FAN1 = "ACTION_TOGGLE_FAN1"
+        const val ACTION_TOGGLE_FAN2 = "ACTION_TOGGLE_FAN2"
+        const val ACTION_TOGGLE_LIGHT1 = "ACTION_TOGGLE_LIGHT1"
+        const val ACTION_TOGGLE_LIGHT2 = "ACTION_TOGGLE_LIGHT2"
     }
 
-    override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
+    override fun onUpdate(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetIds: IntArray
+    ) {
         for (appWidgetId in appWidgetIds) {
-            val views = RemoteViews(context.packageName, R.layout.widget_layout)
-
-            // Set click listeners
-            setClick(context, views, R.id.button_fan1)
-            setClick(context, views, R.id.button_fan2)
-            setClick(context, views, R.id.button_light1)
-            setClick(context, views, R.id.button_light2)
-
-            // Apply current state
-            applyStateToViews(context, views)
-
-            appWidgetManager.updateAppWidget(appWidgetId, views)
+            updateWidget(context, appWidgetManager, appWidgetId)
         }
-    }
-
-    private fun setClick(context: Context, views: RemoteViews, buttonId: Int) {
-        val intent = Intent(context, SmartHomeWidget::class.java).apply {
-            action = ACTION_TOGGLE
-            putExtra(EXTRA_BUTTON_ID, buttonId)
-        }
-        val pendingIntent = PendingIntent.getBroadcast(
-            context,
-            buttonId,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        views.setOnClickPendingIntent(buttonId, pendingIntent)
     }
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
-        if (intent.action == ACTION_TOGGLE) {
-            val buttonId = intent.getIntExtra(EXTRA_BUTTON_ID, -1)
-            if (buttonId != -1) {
-                handleToggle(context, buttonId)
-            }
+
+        when (intent.action) {
+            ACTION_TOGGLE_FAN1 -> toggleFan1(context)
+            ACTION_TOGGLE_FAN2 -> toggleFan2(context)
+            ACTION_TOGGLE_LIGHT1 -> toggleLight1(context)
+            ACTION_TOGGLE_LIGHT2 -> toggleLight2(context)
         }
     }
 
-    private fun handleToggle(context: Context, buttonId: Int) {
-        when (buttonId) {
-            R.id.button_fan1 -> {
-                WidgetState.fan1 = if (WidgetState.fan1 == 0) 1 else 0
-                sendCommand(if (WidgetState.fan1 == 1) "11" else "10") // Fan 1 ON/OFF
-            }
-            R.id.button_fan2 -> {
-                WidgetState.fan2 = if (WidgetState.fan2 == 0) 1 else 0
-                sendCommand(if (WidgetState.fan2 == 1) "51" else "50") // Fan 2 ON/OFF
-            }
-            R.id.button_light1 -> {
-                WidgetState.light1 = !WidgetState.light1
-                sendCommand(if (WidgetState.light1) "01" else "00") // Light 1 relay 0
-            }
-            R.id.button_light2 -> {
-                WidgetState.light2 = !WidgetState.light2
-                sendCommand(if (WidgetState.light2) "41" else "40") // Light 2 relay 4
-            }
-        }
-
-        // Animate and update widget
+    private fun updateWidget(context: Context, manager: AppWidgetManager, widgetId: Int) {
         val views = RemoteViews(context.packageName, R.layout.widget_layout)
-        applyStateToViews(context, views)
-        val appWidgetManager = AppWidgetManager.getInstance(context)
-        val ids = appWidgetManager.getAppWidgetIds(
-            android.content.ComponentName(context, SmartHomeWidget::class.java)
-        )
-        for (id in ids) appWidgetManager.updateAppWidget(id, views)
-    }
 
-    private fun sendCommand(cmd: String) {
-        BLEController.sendCommand(cmd)
-        MQTTController.sendCommand(cmd)
-    }
+        // Set up button click actions
+        val pendingIntentFan1 = getPendingIntent(context, ACTION_TOGGLE_FAN1)
+        val pendingIntentFan2 = getPendingIntent(context, ACTION_TOGGLE_FAN2)
+        val pendingIntentLight1 = getPendingIntent(context, ACTION_TOGGLE_LIGHT1)
+        val pendingIntentLight2 = getPendingIntent(context, ACTION_TOGGLE_LIGHT2)
 
-    private fun applyStateToViews(context: Context, views: RemoteViews) {
-        // Set animation drawable
+        views.setOnClickPendingIntent(R.id.button_fan1, pendingIntentFan1)
+        views.setOnClickPendingIntent(R.id.button_fan2, pendingIntentFan2)
+        views.setOnClickPendingIntent(R.id.button_light1, pendingIntentLight1)
+        views.setOnClickPendingIntent(R.id.button_light2, pendingIntentLight2)
+
+        // Set images based on current state
         views.setImageViewResource(
             R.id.button_fan1,
-            if (WidgetState.fan1 == 1) R.drawable.light_on_anim else R.drawable.light_off_anim
+            if (WidgetState.fan1 == 1) R.drawable.button_round_orange else R.drawable.button_round_green
         )
         views.setImageViewResource(
             R.id.button_fan2,
-            if (WidgetState.fan2 == 1) R.drawable.light_on_anim else R.drawable.light_off_anim
+            if (WidgetState.fan2 == 1) R.drawable.button_round_orange else R.drawable.button_round_green
         )
         views.setImageViewResource(
             R.id.button_light1,
-            if (WidgetState.light1) R.drawable.light_on_anim else R.drawable.light_off_anim
+            if (WidgetState.light1) R.drawable.button_round_orange else R.drawable.button_round_green
         )
         views.setImageViewResource(
             R.id.button_light2,
-            if (WidgetState.light2) R.drawable.light_on_anim else R.drawable.light_off_anim
+            if (WidgetState.light2) R.drawable.button_round_orange else R.drawable.button_round_green
         )
+
+        manager.updateAppWidget(widgetId, views)
+    }
+
+    private fun getPendingIntent(context: Context, action: String) =
+        android.app.PendingIntent.getBroadcast(
+            context,
+            action.hashCode(),
+            Intent(context, SmartHomeWidget::class.java).setAction(action),
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_MUTABLE
+            else
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+    // ---------------- TOGGLE METHODS ----------------
+    private fun toggleFan1(context: Context) {
+        WidgetState.fan1 = if (WidgetState.fan1 == 1) 0 else 1
+        sendFanCommand(WidgetState.fan1, 10, 11)
+        WidgetState.notifyUpdate()
+        animateWidgetButton(context, R.id.button_fan1)
+    }
+
+    private fun toggleFan2(context: Context) {
+        WidgetState.fan2 = if (WidgetState.fan2 == 1) 0 else 1
+        sendFanCommand(WidgetState.fan2, 50, 51)
+        WidgetState.notifyUpdate()
+        animateWidgetButton(context, R.id.button_fan2)
+    }
+
+    private fun toggleLight1(context: Context) {
+        WidgetState.light1 = !WidgetState.light1
+        sendLightCommand(WidgetState.light1, 0)
+        WidgetState.notifyUpdate()
+        animateWidgetButton(context, R.id.button_light1)
+    }
+
+    private fun toggleLight2(context: Context) {
+        WidgetState.light2 = !WidgetState.light2
+        sendLightCommand(WidgetState.light2, 4)
+        WidgetState.notifyUpdate()
+        animateWidgetButton(context, R.id.button_light2)
+    }
+
+    // ---------------- SEND COMMANDS ----------------
+    private fun sendFanCommand(state: Int, onRelay: Int, offRelay: Int) {
+        val cmd = if (state == 1) "$onRelay" else "$offRelay"
+        BLEController.sendCommand(cmd)
+        MQTTController.sendCommand(cmd)
+        Log.d(TAG, "Fan command sent: $cmd")
+    }
+
+    private fun sendLightCommand(state: Boolean, relay: Int) {
+        val cmd = if (state) "${relay}1" else "${relay}0"
+        BLEController.sendCommand(cmd)
+        MQTTController.sendCommand(cmd)
+        Log.d(TAG, "Light command sent: $cmd")
+    }
+
+    // ---------------- ANIMATION ----------------
+    private fun animateWidgetButton(context: Context, buttonId: Int) {
+        val manager = AppWidgetManager.getInstance(context)
+        val views = RemoteViews(context.packageName, R.layout.widget_layout)
+
+        views.setInt(buttonId, "setBackgroundResource", R.drawable.toggle_light)
+        manager.updateAppWidget(android.appwidget.AppWidgetManager.getInstance(context).getAppWidgetIds(
+            android.content.ComponentName(context, SmartHomeWidget::class.java)
+        ), views)
     }
 }
