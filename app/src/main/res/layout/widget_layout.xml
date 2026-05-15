@@ -1,46 +1,46 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/widgetRoot"
-    android:orientation="vertical"
+    android:id="@+id/widget_root"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
+    android:orientation="vertical"
     android:padding="8dp"
     android:background="@drawable/widget_bg">
 
-    <!-- Light Relay 0 -->
-    <ToggleButton
-        android:id="@+id/toggleLight0"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:textOn="Light 0 ON"
-        android:textOff="Light 0 OFF"
-        android:background="@drawable/toggle_bg" />
+    <!-- Fan 1 -->
+    <ImageButton
+        android:id="@+id/button_fan1"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        android:background="@drawable/toggle_light"
+        android:src="@drawable/button_round_orange"
+        android:contentDescription="Fan 1" />
 
-    <!-- Fan Relay 1 -->
-    <ToggleButton
-        android:id="@+id/toggleFan1"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:textOn="Fan 1 ON"
-        android:textOff="Fan 1 OFF"
-        android:background="@drawable/toggle_bg" />
+    <!-- Fan 2 -->
+    <ImageButton
+        android:id="@+id/button_fan2"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        android:background="@drawable/toggle_light"
+        android:src="@drawable/button_round_orange"
+        android:contentDescription="Fan 2" />
 
-    <!-- Light Relay 4 -->
-    <ToggleButton
-        android:id="@+id/toggleLight4"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:textOn="Light 4 ON"
-        android:textOff="Light 4 OFF"
-        android:background="@drawable/toggle_bg" />
+    <!-- Light 1 -->
+    <ImageButton
+        android:id="@+id/button_light1"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        android:background="@drawable/toggle_light"
+        android:src="@drawable/button_round_orange"
+        android:contentDescription="Light 1" />
 
-    <!-- Fan Relay 5 -->
-    <ToggleButton
-        android:id="@+id/toggleFan5"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:textOn="Fan 5 ON"
-        android:textOff="Fan 5 OFF"
-        android:background="@drawable/toggle_bg" />
+    <!-- Light 2 -->
+    <ImageButton
+        android:id="@+id/button_light2"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        android:background="@drawable/toggle_light"
+        android:src="@drawable/button_round_orange"
+        android:contentDescription="Light 2" />
 
 </LinearLayout>
