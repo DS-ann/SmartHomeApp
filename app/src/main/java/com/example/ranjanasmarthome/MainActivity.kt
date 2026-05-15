@@ -20,7 +20,6 @@ class MainActivity : ComponentActivity() {
     private lateinit var webView: WebView
     private val TAG = "MainActivity"
 
-    // Permissions required
     private val REQUIRED_PERMISSIONS = mutableListOf(
         Manifest.permission.INTERNET,
         Manifest.permission.BLUETOOTH,
@@ -35,7 +34,6 @@ class MainActivity : ComponentActivity() {
         }
     }.toTypedArray()
 
-    // Activity Result Launcher for permissions
     private val requestPermissionsLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
             val allGranted = results.values.all { it }
@@ -75,15 +73,21 @@ class MainActivity : ComponentActivity() {
 
         // ===================== OBSERVE WIDGETSTATE =====================
         WidgetState.onStateUpdate = { l1, f1, l2, f2 ->
-            updateWebView(l1, f1, l2, f2)
+            updateWebViewPartial(l1, f1, l2, f2) // Widget only
+        }
+
+        // Observe MQTT/BLE full relay + fan updates for WebView
+        MQTTController.onStateUpdate = { l1, f1, l2, f2 ->
+            updateWebViewFull(MQTTController.getRelayStates(), MQTTController.getFanSpeeds())
+        }
+        BLEController.onStateUpdate = { l1, f1, l2, f2 ->
+            updateWebViewFull(BLEController.getRelayStates(), BLEController.getFanSpeeds())
         }
     }
 
-    // Check if all required permissions are granted
     private fun allPermissionsGranted(): Boolean =
         REQUIRED_PERMISSIONS.all { ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED }
 
-    // Start the foreground service safely
     private fun startSmartHomeService() {
         try {
             val intent = Intent(this, SmartHomeService::class.java)
@@ -96,36 +100,43 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // Initialize BLE and MQTT controllers and register with service
     private fun initControllers() {
         val bleManager = SmartHomeBleManager(this)
-        val mqttController = MQTTController(this)
-
         SmartHomeService.setBleManager(bleManager)
-        SmartHomeService.setMqttController(mqttController)
+        BLEController.init(bleManager)
 
-        // Connect BLE/MQTT automatically if needed
+        MQTTController.init(this)
+        SmartHomeService.setMqttController(MQTTController)
+
         bleManager.connectSavedDevice()
-        mqttController.connect()
+        MQTTController.connect()
     }
 
-    // Update WebView UI with WidgetState
-    private fun updateWebView(light1: Boolean, fan1: Boolean, light2: Boolean, fan2: Boolean) {
+    // ---------------- WEBVIEW UPDATE ----------------
+
+    // Only for first 2 relays (Widget)
+    private fun updateWebViewPartial(light1: Boolean, fan1: Int, light2: Boolean, fan2: Int) {
         runOnUiThread {
             val l1 = if (light1) 1 else 0
-            val f1 = if (fan1) 1 else 0
+            val f1 = fan1
             val l2 = if (light2) 1 else 0
-            val f2 = if (fan2) 1 else 0
+            val f2 = fan2
             webView.evaluateJavascript("updateWidget($l1,$f1,$l2,$f2);", null)
         }
     }
 
-    // ===================== JS BRIDGE =====================
-    inner class AndroidBridge {
+    // Full update for WebView: all 8 relays + 2 fans
+    private fun updateWebViewFull(relays: BooleanArray, fans: IntArray) {
+        runOnUiThread {
+            val relayStr = relays.joinToString(",") { if (it) "1" else "0" }
+            val fanStr = fans.joinToString(",")
+            webView.evaluateJavascript("updateAllRelaysAndFans([$relayStr],[$fanStr]);", null)
+        }
+    }
 
+    inner class AndroidBridge {
         @android.webkit.JavascriptInterface
         fun sendRelay(relayNumber: String, state: Boolean) {
-            // Always send via BLE + MQTT
             SmartHomeService.sendRelayCommand(relayNumber, state)
         }
 
@@ -148,6 +159,6 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         SmartHomeBleManager.disconnectAll()
-        MQTTController.disconnectAll()
+        MQTTController.disconnect()
     }
 }
